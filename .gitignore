@@ -1,10 +1,46 @@
-.eunit
-deps
-*.o
-*.beam
-*.plt
-erl_crash.dump
+# ignore any file generated under ebin dirs
 ebin
-rel/example_project
+*.beam
+
+# ignore dependencies folder
+deps
+
+#docs
+doc
+!doc/overview.edoc
+
+#eunit
+.eunit
+
+# ignore sasl_log
+sasl_log
+
+#ignore autodeps
+*.autodeps
+
+# ignore any compiled c-code under system architecture directory
+x86_64-unknown-linux-gnu
+
+#ignore emacs bkp + autostore
+*~
+*\#
+*/.#*
+erl_crash.dump
+
+#ignore vim swap files
+*.swp
+
+#ignore generated libraries
+*.so*
+*.o
+
+# ignore .plts (Dialyzer PLT directory)
+.plts
+*.plt
+
+#ignore release
+rel/pundun
+
+#other
 .concrete/DEV_MODE
 .rebar
