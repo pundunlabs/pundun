@@ -1,6 +1,6 @@
 #!/bin/bash
 # -*- tab-width:4;indent-tabs-mode:nil -*-
-# ex: ts=4 sw=4 et
+# ex: ts=8 sw=4 et
 # set -x
 
 OS_NAME=$(uname -s)
@@ -238,7 +238,8 @@ case "$1" in
         RUN_PARAM=$(printf "\'%s\' " "$@")
         HEART_COMMAND="$RUNNER_BASE_DIR/bin/$SCRIPT $HEART_OPTION $RUN_PARAM"
         export HEART_COMMAND
-        mkdir -p $PIPE_DIR
+        export ERL_MAX_ETS_TABLES=20000
+	mkdir -p $PIPE_DIR
         $ERTS_PATH/run_erl -daemon $PIPE_DIR $RUNNER_LOG_DIR "exec $RUNNER_BASE_DIR/bin/$SCRIPT $START_OPTION $RUN_PARAM" 2>&1
         ;;
 
