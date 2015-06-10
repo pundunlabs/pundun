@@ -1,6 +1,6 @@
 {application, pundun,
  [
-  {description, ""},
+  {description, "Statistical Data Analysis Framework"},
   {vsn, "1"},
   {registered, []},
   {applications, [

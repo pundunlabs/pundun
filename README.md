@@ -1,7 +1,7 @@
 # pundun
 Statistical Data Analysis Framework
 
-> Note: Deopendencies required to build this framework are not available to public yet.
+> Note: Dependencies that are required to build this framework are not available to public yet.
 
 ### Building Pundun Framework
 

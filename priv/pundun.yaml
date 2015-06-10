@@ -1,0 +1,11 @@
+# Pundun Application configuration file
+---
+app_name : pundun
+notify_cb: []
+verify_cb: []
+params	 :
+    pbp_server_options : {ip: "127.0.0.1",
+			  port: 8889,
+			  backlog: 5,
+			  max: 20,
+			  acceptor_pool_size: 5}
