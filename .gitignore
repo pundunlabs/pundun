@@ -12,6 +12,9 @@ doc
 #eunit
 .eunit
 
+#common test
+test/logs
+
 # ignore sasl_log
 sasl_log
 
