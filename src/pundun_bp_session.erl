@@ -1,3 +1,26 @@
+%%%===================================================================
+%% @author Erdem Aksu
+%% @copyright 2015 Pundun Labs AB
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
+%%
+%% http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+%% implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License.
+%% -------------------------------------------------------------------
+%% @title Pundun Binary Protocol Sesion Handler.
+%% @doc
+%% Server side SCRAM Authentication and Message passing to transport
+%% layer is handled in this module.
+%% @end
+%%%===================================================================
+
 -module(pundun_bp_session).
 
 -behaviour(gen_server).
@@ -14,6 +37,7 @@
          terminate/2,
          code_change/3]).
 
+-include("pundun.hrl").
 -include("gb_log.hrl").
 
 -define(TIMEOUT, 600000).
@@ -23,19 +47,9 @@
 -define(AUTHENTICATED, 2).
 
 -record(state, {scram_state = ?WAIT_FOR_CLIENT_FIRST,
+		scram_data,
 		socket,
-		options,
-		'gs2-header',
-		'cb-name', 
-		authzid,
-		username,
-		nonce,
-		salt,
-		salted_password,
-		auth_message,
-		iteration_count,
-		client_first_msg_bare,
-		server_first_msg
+		options
 		}).
 
 %%%===================================================================
@@ -72,6 +86,7 @@ init(Args) ->
     Opts = proplists:delete(socket, Args),
     {ok, #state{socket = Socket,
 		options = Opts}}.
+
 %%--------------------------------------------------------------------
 %% @doc
 %% Pundun Binary Protocol Server Initialization function that is
@@ -201,31 +216,28 @@ handle_client_first_message(Data, State) when is_binary(Data)->
 				  State :: #state{}) ->
     {ok, State :: #state{}}.
 handle_client_first_message("client-first-message", ScramData, State) ->
-    Gs2Header = maps:get('gs2-header', ScramData),
-    CbName = maps:get('cb-name', ScramData, undefined),
-    Authzid = maps:get(authzid, ScramData, undefined),
     Username = maps:get(username, ScramData),
+    {ok, Salt, IterCount} = get_user_salt(Username),
+
+    ClientFirstMsg = maps:get(str, ScramData),
+    ClientFirstMsgBare = scramerl_lib:prune('gs2-header', ClientFirstMsg),
+
     CNonce = maps:get(nonce, ScramData),
     SNonce = scramerl:gen_nonce(),
     Nonce = CNonce ++ SNonce,
-    Salt = [crypto:rand_uniform(48,125) || _ <- lists:seq(0,15)],
-    IterCount = 1024,
+
     MsgStr = scramerl:server_first_message(Nonce, Salt, IterCount),
     ServerFirstMessage = list_to_binary(MsgStr),
     ?debug("Sending server-first-message: ~p", [ServerFirstMessage]),
     ok = gen_tcp:send(State#state.socket, ServerFirstMessage),
-    ClientFirstMsg = maps:get(str, ScramData),
-    ClientFirstMsgBare = scramerl_lib:prune('gs2-header', ClientFirstMsg),
+
+    AddScramData = maps:from_list([{iteration_count, IterCount},
+				   {salt, Salt},
+				   {snonce, SNonce},
+				   {client_first_msg_bare, ClientFirstMsgBare},
+				   {server_first_msg, MsgStr}]),
     {ok, State#state{scram_state = ?WAIT_FOR_CLIENT_FINAL,
-		     'gs2-header' = Gs2Header,
-		     'cb-name' = CbName,
-		     authzid = Authzid,
-		     username = Username,
-		     nonce = Nonce,
-		     salt = Salt,
-		     iteration_count = IterCount,
-		     client_first_msg_bare = ClientFirstMsgBare,
-		     server_first_msg = MsgStr}};
+		     scram_data = maps:merge(ScramData, AddScramData)}};
 handle_client_first_message(Message, _ScramData, State) ->
     ?debug("Invalid client first message: ~p", [Message]),
     {ok, State}.
@@ -245,18 +257,13 @@ handle_client_final_message(Data, State) when is_binary(Data)->
     {ok, State :: #state{}}.
 handle_client_final_message("client-final-message",
 			    ScramData,
-			    State = #state{nonce = Nonce,
-					   salt = Salt,
-					   iteration_count = IterCount,
-					   client_first_msg_bare = ClientFirstMsgBare,
-					   server_first_msg = ServerFirstMsg}) ->
-    _ChannelBinding = maps:get('channel-binding', ScramData, undefined),
-    CheckNonce = maps:get(nonce, ScramData),
-    CheckProof = maps:get(proof, ScramData),
+			    State = #state{scram_data = PrevScramData}) ->
 
-    Normalized = stringprep:prepare("pencil"),
-    SaltedPassword = scramerl_lib:hi(Normalized, Salt, IterCount),
-    
+    Username = maps:get(username, PrevScramData),
+    {ok, SaltedPassword} = get_salted_password(Username),
+
+    ClientFirstMsgBare = maps:get(client_first_msg_bare, PrevScramData),
+    ServerFirstMsg = maps:get(server_first_msg, PrevScramData),
     ClientFinalMsg = maps:get(str, ScramData),
     CFMWoP = scramerl_lib:prune(proof, ClientFinalMsg),
     AuthMessage = ClientFirstMsgBare ++ "," ++
@@ -265,18 +272,27 @@ handle_client_final_message("client-final-message",
     ?debug("SaltedPassword: ~p",[SaltedPassword]),
     ?debug("AuthMessage: ~p",[AuthMessage]),
     Proof = scramerl:client_proof(SaltedPassword, AuthMessage),
-    NewState = State#state{salted_password = SaltedPassword,
-			   auth_message = AuthMessage},
+
+    CheckNonce = maps:get(nonce, ScramData),
+    CheckProof = maps:get(proof, ScramData),
+
+    CNonce = maps:get(nonce, PrevScramData),
+    SNonce = maps:get(snonce, PrevScramData),
+    Nonce = CNonce ++ SNonce,
+    AddScramData = maps:from_list([{salted_password, SaltedPassword},
+				   {auth_message, AuthMessage}]),
+    NewScramData =  maps:merge(PrevScramData, AddScramData),
+    NewState = State#state{scram_data = NewScramData},
     handle_client_final_message(Proof, CheckProof, Nonce, CheckNonce, NewState);
-handle_client_final_message(Message, _SciramData, State) ->
+handle_client_final_message(Message, _ScramData, State) ->
     ?debug("Invalid client final message: ~p", [Message]),
     {ok, State}.
 
 handle_client_final_message(Proof, Proof,
 			    Nonce, Nonce,
-			    State = #state{salted_password = SaltedPassword,
-					   auth_message = AuthMessage}) ->
-    
+			    State = #state{scram_data = ScramData}) ->
+    SaltedPassword = maps:get(salted_password, ScramData),
+    AuthMessage = maps:get(auth_message, ScramData),
     ServerSignature = scramerl:server_signature(SaltedPassword, AuthMessage),
     MsgStr = scramerl:server_final_message(ServerSignature),
     ServerFirstMessage = list_to_binary(MsgStr),
@@ -286,5 +302,28 @@ handle_client_final_message(Proof, CheckProof,
 			    Nonce, CheckNonce, State) ->
     ?debug("Unmatched Proof ~p =? ~p",[Proof, CheckProof]),
     ?debug("Unmatched Nonce ~p =? ~p",[Nonce, CheckNonce]),
+    MsgStr = scramerl:server_final_message({error, "invalid-proof"}),
+    ServerFirstMessage = list_to_binary(MsgStr),
+    gen_tcp:send(State#state.socket, ServerFirstMessage),
     {ok, State}.
 
+-spec get_user_salt(Username :: string()) ->
+    {ok, Salt :: string(), IterCount :: string()} | {error, Reason :: term()}.
+get_user_salt(Username) ->
+    case mnesia:dirty_read(pundun_user, Username) of
+	[#pundun_user{salt = Salt,
+		      iteration_count = IterCount}] ->
+	    {ok, Salt, IterCount};
+	_ ->
+	    {error, "unknown-user"}
+    end.
+
+-spec get_salted_password(Username :: string()) ->
+    {ok, SaltedPassword :: string()}.
+get_salted_password(Username) ->
+    case mnesia:dirty_read(pundun_user, Username) of
+	[#pundun_user{salted_password = SaltedPassword}] ->
+	    {ok, SaltedPassword};
+	_ ->
+	    {error, "unknown-user"}
+    end.

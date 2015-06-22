@@ -15,6 +15,11 @@ doc
 #common test
 test/logs
 
+#asn1 generated file
+src/APOLLO-PDU-Descriptions.asn1db
+src/APOLLO-PDU-Descriptions.erl
+src/APOLLO-PDU-Descriptions.hrl
+
 # ignore sasl_log
 sasl_log
 
