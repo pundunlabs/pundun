@@ -406,7 +406,7 @@ case "$1" in
         BINDIR=$ROOTDIR/erts-$ERTS_VSN/bin
         EMU=beam
         PROGNAME=`echo $0 | sed 's/.*\\///'`
-        CMD="$BINDIR/erlexec $SLIM_ARGS -boot $RUNNER_BASE_DIR/releases/$APP_VSN/$BOOTFILE -mode embedded -mnesia dir '$ROOTDIR/data/db' -args_file $VMARGS_PATH"
+        CMD="$BINDIR/erlexec $SLIM_ARGS -boot $RUNNER_BASE_DIR/releases/$APP_VSN/$BOOTFILE -config $CONFIG_PATH -mnesia dir '$ROOTDIR/data/db' -args_file $VMARGS_PATH"
         export EMU
         export ROOTDIR
         export BINDIR
