@@ -48,7 +48,6 @@ erl_crash.dump
 
 #ignore release
 rel/pundun
-rel/files
 
 #other
 .concrete/DEV_MODE

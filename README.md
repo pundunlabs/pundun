@@ -10,9 +10,6 @@ $ git clone https://github.com/erdemaksu/pundun.git
 $ cd pundun
 $ ./rebar get-deps
 $ ./rebar compile
-$ cd rel
-$ ../rebar create-node nodeid=pundun
-$ cd ..
-$ ./rebar generate
+$ (cd rel && ../rebar generate)
 ```
 
