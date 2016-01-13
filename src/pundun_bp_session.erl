@@ -16,8 +16,8 @@
 %% -------------------------------------------------------------------
 %% @title Pundun Binary Protocol Sesion Handler.
 %% @doc
-%% Server side SCRAM Authentication and Message passing to transport
-%% layer is handled in this module.
+%% Server side SCRAM Authentication and PBP Session is handled in this
+%% module.
 %% @end
 %%%===================================================================
 
@@ -35,12 +35,13 @@
          handle_cast/2,
          handle_info/2,
          terminate/2,
-         code_change/3]).
+         code_change/3,
+	 respond/2]).
 
 -include("pundun.hrl").
 -include("gb_log.hrl").
 
--define(TIMEOUT, 600000).
+-define(TIMEOUT, 600000). %% 10 minutes.
 
 -define(WAIT_FOR_CLIENT_FIRST, 0).
 -define(WAIT_FOR_CLIENT_FINAL, 1).
@@ -69,6 +70,17 @@ start_link() ->
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Respond to Pundun client with binary data where Pid is the process
+%% that handles the session inbetween client and Pundun.
+%% @end
+%%--------------------------------------------------------------------
+-spec respond(Pid :: pid(), Data :: binary()) ->
+    ok.
+respond(Pid, Data) ->
+    gen_server:cast(Pid, {respond, Data}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -130,7 +142,12 @@ handle_call(_Request, _From, State) ->
 %%                                  {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
+handle_cast({respond, Data}, State) ->
+    ?debug("Responding with ~p", [Data]),
+    ok = gen_tcp:send(State#state.socket, Data),
+    {noreply, State};
 handle_cast(_Msg, State) ->
+    ?debug("Unhandled cast message received: ~p", [_Msg]),
     {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -146,6 +163,7 @@ handle_cast(_Msg, State) ->
 handle_info({tcp, Socket, Data}, State = #state{scram_state = ?AUTHENTICATED,
 						socket = Socket}) ->
     ?debug("Received tcp data: ~p",[Data]),
+    spawn_link(pundun_bp_handler, handle_incomming_data, [Data, self()]),
     ok = mochiweb_socket:setopts(Socket, [{active, once}]),
     {noreply, State, ?TIMEOUT};
 handle_info({tcp, Socket, Data}, State = #state{scram_state = ?WAIT_FOR_CLIENT_FIRST,
