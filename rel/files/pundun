@@ -96,13 +96,20 @@ fi
 # Extract the target node name from node.args
 NAME_ARG=`egrep '^\-s?name' $VMARGS_PATH`
 if [ -z "$NAME_ARG" ]; then
-    echo "vm.args needs to have either -name or -sname parameter."
+    echo "vm.args needs to have a -(s)name parameter."
     exit 1
 fi
 
 # Extract the name type and name from the NAME_ARG for REMSH
 REMSH_TYPE=`echo $NAME_ARG | awk '{print $1}'`
 REMSH_NAME=`echo $NAME_ARG | awk '{print $2}'`
+
+if [ -z "$REMSH_NAME" ]; then
+    REMSH_NAME="pundun"`echo $HOSTNAME $RUNNER_BASE_DIR | openssl sha1 | cut -b 10-15`
+    echo "Generated node name $REMSH_NAME"
+    NAME_ARG="$REMSH_TYPE $REMSH_NAME"
+    sed -i -e "s;$REMSH_TYPE;$REMSH_TYPE $REMSH_NAME;" $VMARGS_PATH
+fi
 
 # Test if REMSH_NAME contains a @ and set REMSH_HOSTNAME_PART 
 # and REMSH_NAME_PART according REMSH_TYPE
