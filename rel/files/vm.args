@@ -18,3 +18,7 @@
 
 ## Tweak GC to run more often
 ##-env ERL_FULLSWEEP_AFTER 10
+
+## Enable SMP support even if there is only one logical processor detected
+## Without SMP support, dirty_schedulers were not enabled
+-smp
