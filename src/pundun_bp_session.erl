@@ -144,7 +144,7 @@ handle_call(_Request, _From, State) ->
 %%--------------------------------------------------------------------
 handle_cast({respond, Data}, State) ->
     ?debug("Responding with ~p", [Data]),
-    ok = gen_tcp:send(State#state.socket, Data),
+    ok = mochiweb_socket:send(State#state.socket, Data),
     {noreply, State};
 handle_cast(_Msg, State) ->
     ?debug("Unhandled cast message received: ~p", [_Msg]),
@@ -160,6 +160,31 @@ handle_cast(_Msg, State) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
+handle_info({ssl, Socket, Data}, State = #state{scram_state = ?AUTHENTICATED,
+						socket = {ssl, Socket}}) ->
+    ?debug("Received ssl data: ~p",[Data]),
+    spawn_link(pundun_bp_handler, handle_incomming_data, [Data, self()]),
+    ok = mochiweb_socket:setopts({ssl, Socket}, [{active, once}]),
+    {noreply, State, ?TIMEOUT};
+handle_info({ssl, Socket, Data}, State = #state{scram_state = ?WAIT_FOR_CLIENT_FIRST,
+						socket = {ssl, Socket}}) ->
+    ?debug("Start SCRAM AUTH: ~p",[Data]),
+    {ok, NewState} = handle_client_first_message(Data, State),
+    ok = mochiweb_socket:setopts({ssl, Socket}, [{active, once}]),
+    {noreply, NewState, ?TIMEOUT};
+handle_info({ssl, Socket, Data}, State = #state{scram_state = ?WAIT_FOR_CLIENT_FINAL,
+						socket = {ssl, Socket}}) ->
+    ?debug("Handle SCRAM Client Final Message: ~p",[Data]),
+    {ok, NewState} = handle_client_final_message(Data, State),
+    ok = mochiweb_socket:setopts({ssl, Socket}, [{active, once}]),
+    {noreply, NewState, ?TIMEOUT};
+handle_info({ssl, Socket, Data}, State = #state{socket = {ssl, Socket}}) ->
+    ?debug("Received ssl data: ~p",[Data]),
+    ok = mochiweb_socket:setopts({ssl, Socket}, [{active, once}]),
+    {noreply, State, ?TIMEOUT};
+handle_info({ssl_closed, Socket}, State = #state{socket = {ssl, Socket}}) ->
+    ?debug("Received ssl_closed, stopping..",[]),
+    {stop, normal, State};
 handle_info({tcp, Socket, Data}, State = #state{scram_state = ?AUTHENTICATED,
 						socket = Socket}) ->
     ?debug("Received tcp data: ~p",[Data]),
@@ -178,10 +203,6 @@ handle_info({tcp, Socket, Data}, State = #state{scram_state = ?WAIT_FOR_CLIENT_F
     {ok, NewState} = handle_client_final_message(Data, State),
     ok = mochiweb_socket:setopts(Socket, [{active, once}]),
     {noreply, NewState, ?TIMEOUT};
-handle_info({ssl, Socket, Data}, State = #state{socket = Socket}) ->
-    ?debug("Received ssl data: ~p",[Data]),
-    ok = mochiweb_socket:setopts(Socket, [{active, once}]),
-    {noreply, State, ?TIMEOUT};
 handle_info({tcp_closed, Socket}, State = #state{socket = Socket}) ->
     ?debug("Received tcp_closed, stopping..",[]),
     {stop, normal, State};
@@ -247,7 +268,7 @@ handle_client_first_message("client-first-message", ScramData, State) ->
     MsgStr = scramerl:server_first_message(Nonce, Salt, IterCount),
     ServerFirstMessage = list_to_binary(MsgStr),
     ?debug("Sending server-first-message: ~p", [ServerFirstMessage]),
-    ok = gen_tcp:send(State#state.socket, ServerFirstMessage),
+    ok = mochiweb_socket:send(State#state.socket, ServerFirstMessage),
 
     AddScramData = maps:from_list([{iteration_count, IterCount},
 				   {salt, Salt},
@@ -314,7 +335,7 @@ handle_client_final_message(Proof, Proof,
     ServerSignature = scramerl:server_signature(SaltedPassword, AuthMessage),
     MsgStr = scramerl:server_final_message(ServerSignature),
     ServerFirstMessage = list_to_binary(MsgStr),
-    gen_tcp:send(State#state.socket, ServerFirstMessage),
+    mochiweb_socket:send(State#state.socket, ServerFirstMessage),
     {ok, State#state{scram_state = ?AUTHENTICATED}};
 handle_client_final_message(Proof, CheckProof,
 			    Nonce, CheckNonce, State) ->
@@ -322,7 +343,7 @@ handle_client_final_message(Proof, CheckProof,
     ?debug("Unmatched Nonce ~p =? ~p",[Nonce, CheckNonce]),
     MsgStr = scramerl:server_final_message({error, "invalid-proof"}),
     ServerFirstMessage = list_to_binary(MsgStr),
-    gen_tcp:send(State#state.socket, ServerFirstMessage),
+    mochiweb_socket:send(State#state.socket, ServerFirstMessage),
     {ok, State}.
 
 -spec get_user_salt(Username :: string()) ->

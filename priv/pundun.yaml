@@ -8,4 +8,8 @@ params	 :
 			  port: 8889,
 			  backlog: 5,
 			  max: 20,
-			  acceptor_pool_size: 5}
+			  acceptor_pool_size: 5,
+			  ssl: true,
+			  ssl_opts: {certfile: "cert.pem",
+				     keyfile: "key.pem",
+				     depth: 1}}
