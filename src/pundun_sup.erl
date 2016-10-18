@@ -36,7 +36,11 @@ init([]) ->
 	{mochiweb_socket_server,
 	 {mochiweb_socket_server, start_link, [PBPServerOptions]},
 	 permanent, 5000, worker, [mochiweb_socket_server]},
-    {ok, { SupFlags, [PundunBinaryProtocolServer]} }.
+    PundunCLI =
+	{pundun_cli,
+	 {pundun_cli, start_link, []},
+	 permanent, 5000, worker, [pundun_cli]},
+    {ok, { SupFlags, [PundunBinaryProtocolServer, PundunCLI]} }.
 
 %% ===================================================================
 %% Internal Functions

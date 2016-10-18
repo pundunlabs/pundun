@@ -13,3 +13,7 @@ params	 :
 			  ssl_opts: {certfile: "cert.pem",
 				     keyfile: "key.pem",
 				     depth: 1}}
+    pundun_cli_options : {ip: "127.0.0.1",
+			  port: 8989,
+			  system_dir: "ssh",
+			  user_dir: "ssh"}
