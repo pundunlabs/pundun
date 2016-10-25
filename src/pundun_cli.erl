@@ -40,8 +40,8 @@
 	 cm_expand/1,
 	 logger_expand/1]).
 
--include("gb_log.hrl").
--include("gb_conf.hrl").
+-include_lib("gb_log/include/gb_log.hrl").
+-include_lib("gb_conf/include/gb_conf.hrl").
 
 start_link() ->
     gb_cli_server:start_link(?MODULE).

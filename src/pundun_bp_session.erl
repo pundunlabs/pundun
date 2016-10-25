@@ -39,7 +39,7 @@
 	 respond/2]).
 
 -include("pundun.hrl").
--include("gb_log.hrl").
+-include_lib("gb_log/include/gb_log.hrl").
 
 -define(TIMEOUT, 600000). %% 10 minutes.
 

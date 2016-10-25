@@ -24,8 +24,8 @@
 -export([handle_incomming_data/2]).
 
 -include("pundun.hrl").
--include("enterdb.hrl").
--include("gb_log.hrl").
+-include_lib("enterdb/include/enterdb.hrl").
+-include_lib("gb_log/include/gb_log.hrl").
 -include("APOLLO-PDU-Descriptions.hrl").
 
 %%--------------------------------------------------------------------

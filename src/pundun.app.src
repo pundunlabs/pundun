@@ -1,13 +1,18 @@
 {application, pundun,
  [
   {description, "Statistical Data Analysis Framework"},
-  {vsn, "1"},
+  {vsn, "1.0"},
   {registered, []},
   {applications, [
                   kernel,
 		  stdlib,
-		  ssh
+		  ssh,
+		  enterdb
                  ]},
   {mod, { pundun_app, []}},
-  {env, []}
+  {env, []},
+  {maintainers,["Erdem Aksu, Jonas Falkevik"]},
+  {licenses, ["Apache 2.0"]},
+  {links, [{"Github", "https://github.com/pundunlabs/pundun.git"},
+	   {"Docs", "http://www.pundun.io/"}]}
  ]}.

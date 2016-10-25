@@ -3,17 +3,31 @@
 Statistical Data Analysis Framework
 
 ### Building Pundun Framework
+One may like to change configuration parameters before release. Please see below for pundun configuration.
 
+#####dev-mode
 ```sh
 $ git clone https://github.com/pundunlabs/pundun.git
 $ cd pundun
-$ rebar get-deps
-$ rebar compile
-$ (cd rel && rebar generate)
+$ rebar3 release
+```
+
+#####deployable
+```sh
+$ rebar3 as prod tar
+```
+
+#####deployable with erts included
+```sh
+$ rebar3 as target tar
 ```
 
 ### Configuring Pundun Binary Protocol Server
-Edit 'PROD/lib/pundun-VERSION/priv/pundun.yaml'; where PROD is 'rel/pundun' if above commands are applied.
+Edit 'PROD/etc/pundun.yaml';
+    where PROD is '\_build/RELEASE/rel/pundun' and
+	  RELEASE is default | prod | target
+    if above commands are applied.
+
 Modify 'pbp_server_options' parameter.
 
 SSL certificate and key files should be defined here.
@@ -27,7 +41,7 @@ $ openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 1095
 
 ### Configuring SHH Daemon>
 
-Edit 'PROD/lib/pundun<VERSION>/priv/pundun.yaml'.
+Edit 'PROD/etc/pundun.yaml'.
 Modify 'pundun_cli_options' parameter.
 Under specified 'user_dir', place public and private keys for ssh client.
 
@@ -47,7 +61,6 @@ Store any public key in '<PROD>/lib/pundun<VERSION>/priv/<system_dir>/authorized
 
 ```sh
 $ cd <PROD>/bin/
-$ ./pundun configure
 $ ./pundun start
 ```
 Read local logs from 'PROD/log/local.pundun.log' file.
