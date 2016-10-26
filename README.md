@@ -1,6 +1,6 @@
 # pundun
 
-Statistical Data Analysis Framework
+Data Management Framework with a Distributed Database.
 
 ### Building Pundun Framework
 One may like to change configuration parameters before release. Please see below for pundun configuration.
@@ -24,8 +24,11 @@ $ rebar3 as target tar
 
 ### Configuring Pundun Binary Protocol Server
 Edit 'PROD/etc/pundun.yaml';
+    
     where PROD is '\_build/RELEASE/rel/pundun' and
+
 	  RELEASE is default | prod | target
+    
     if above commands are applied.
 
 Modify 'pbp_server_options' parameter.
