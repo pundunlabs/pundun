@@ -2,9 +2,6 @@
 _build
 *.beam
 
-# ignore dependencies folder
-deps
-
 #docs
 doc
 !doc/overview.edoc
@@ -46,11 +43,9 @@ erl_crash.dump
 .plts
 *.plt
 
-#ignore raw dependency apollo
-apollo
-
 #other
 .concrete/DEV_MODE
 rebar3.crashdump
 rebar.lock
 config/slib/
+compile_commands.json
