@@ -30,7 +30,7 @@
 
 %% gen_server callbacks
 -export([init/1,
-	 init/2,
+	 init/3,
 	 handle_call/3,
          handle_cast/2,
          handle_info/2,
@@ -50,6 +50,7 @@
 -record(state, {scram_state = ?WAIT_FOR_CLIENT_FIRST,
 		scram_data,
 		socket,
+		handler,
 		options
 		}).
 
@@ -95,8 +96,10 @@ respond(Pid, Data) ->
     {stop, Reason :: term()}.
 init(Args) ->
     Socket = proplists:get_value(socket, Args),
+    Handler = proplists:get_value(handler, Args),
     Opts = proplists:delete(socket, Args),
     {ok, #state{socket = Socket,
+		handler = Handler,
 		options = Opts}}.
 
 %%--------------------------------------------------------------------
@@ -105,10 +108,15 @@ init(Args) ->
 %% provided as a callback to mochiweb_socket_server.
 %% @end
 %%--------------------------------------------------------------------
--spec init(Socket :: port(), Opts :: [{atom(), term()}]) -> ok.
-init(Socket, Opts) ->
-    ?debug("Initialize pundun binary protocol server: ~p",[[{socket, Socket}|Opts]]),
+-spec init(Socket :: port(),
+	   Opts :: [{atom(), term()}],
+	   Args :: [{atom(), term()}]) -> ok.
+init(Socket, Opts, Args) ->
+    ?debug("Initialize pundun binary protocol server. Opts: ~p, Args: ~p",
+    [[{socket, Socket}|Opts], Args]),
+    Handler = proplists:get_value(handler, Args),
     State = #state{socket = Socket,
+		   handler = Handler,
 		   options = Opts},
     Timeout = ?TIMEOUT,
     ok = mochiweb_socket:setopts(Socket, [{active, once}]),
@@ -161,9 +169,10 @@ handle_cast(_Msg, State) ->
 %% @end
 %%--------------------------------------------------------------------
 handle_info({ssl, Socket, Data}, State = #state{scram_state = ?AUTHENTICATED,
-						socket = {ssl, Socket}}) ->
+						socket = {ssl, Socket},
+						handler = Handler}) ->
     ?debug("Received ssl data: ~p",[Data]),
-    spawn_link(pundun_bp_handler, handle_incomming_data, [Data, self()]),
+    spawn_link(Handler, handle_incomming_data, [Data, self()]),
     ok = mochiweb_socket:setopts({ssl, Socket}, [{active, once}]),
     {noreply, State, ?TIMEOUT};
 handle_info({ssl, Socket, Data}, State = #state{scram_state = ?WAIT_FOR_CLIENT_FIRST,
@@ -186,9 +195,10 @@ handle_info({ssl_closed, Socket}, State = #state{socket = {ssl, Socket}}) ->
     ?debug("Received ssl_closed, stopping..",[]),
     {stop, normal, State};
 handle_info({tcp, Socket, Data}, State = #state{scram_state = ?AUTHENTICATED,
-						socket = Socket}) ->
+						socket = Socket,
+						handler = Handler}) ->
     ?debug("Received tcp data: ~p",[Data]),
-    spawn_link(pundun_bp_handler, handle_incomming_data, [Data, self()]),
+    spawn_link(Handler, handle_incomming_data, [Data, self()]),
     ok = mochiweb_socket:setopts(Socket, [{active, once}]),
     {noreply, State, ?TIMEOUT};
 handle_info({tcp, Socket, Data}, State = #state{scram_state = ?WAIT_FOR_CLIENT_FIRST,

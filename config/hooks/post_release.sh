@@ -47,8 +47,15 @@ done
 ## This makes easier access to configuration files.
 ETC=$REBAR_BUILD_DIR/rel/pundun/etc
 CFGS=`find $REBAR_BUILD_DIR/rel/pundun/lib/*/priv/ -name *.yaml -type f`
-for c in $CFGS; do
-    ln -s $c $ETC/`basename $c`
-done
-
+create_sym_links()
+{
+    for c in $CFGS; do
+	local link=$ETC/`basename $c`
+	if [ -L $link ]; then
+	    rm $c
+	fi
+	ln -s $c $link
+    done
+}
+create_sym_links
 # End

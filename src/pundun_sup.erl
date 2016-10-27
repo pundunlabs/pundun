@@ -31,16 +31,26 @@ init([]) ->
 
     SupFlags = {RestartStrategy, MaxRestarts, MaxSecondsBetweenRestarts},
     PBPServerOptions = get_pbp_server_options(),
-    ?debug("mochi_socket_server options: ~p", [PBPServerOptions]),
+    ?debug("mochi_socket_server options for binary protocol (asn1): ~p",
+	[PBPServerOptions]),
+    PPBServerOptions = get_ppb_server_options(),
+    ?debug("mochi_socket_server options for protocol buffers: ~p",
+	[PPBServerOptions]),
     PundunBinaryProtocolServer =
-	{mochiweb_socket_server,
+	{pundun_bp_server,
 	 {mochiweb_socket_server, start_link, [PBPServerOptions]},
+	 permanent, 5000, worker, [mochiweb_socket_server]},
+    PundunProtocolBuffersServer =
+	{pundun_pb_server,
+	 {mochiweb_socket_server, start_link, [PPBServerOptions]},
 	 permanent, 5000, worker, [mochiweb_socket_server]},
     PundunCLI =
 	{pundun_cli,
 	 {pundun_cli, start_link, []},
 	 permanent, 5000, worker, [pundun_cli]},
-    {ok, { SupFlags, [PundunBinaryProtocolServer, PundunCLI]} }.
+    {ok, { SupFlags, [PundunBinaryProtocolServer,
+		      PundunProtocolBuffersServer,
+		      PundunCLI]} }.
 
 %% ===================================================================
 %% Internal Functions
@@ -50,7 +60,16 @@ get_pbp_server_options() ->
     Params= gb_conf:get_param("pundun.yaml", pbp_server_options),
     PropList = [{list_to_atom(P),V} || {P,V} <- Params],
     PropList1 = fix_ssl_opts(PropList),
-    [{loop, {pundun_bp_session, init}} | PropList1].
+    [{loop, {pundun_bp_session, init, [[{handler, pundun_bp_handler}]]}}
+      | PropList1].
+
+-spec get_ppb_server_options() -> Options :: [{atom(), term()}].
+get_ppb_server_options() ->
+    Params= gb_conf:get_param("pundun.yaml", ppb_server_options),
+    PropList = [{list_to_atom(P),V} || {P,V} <- Params],
+    PropList1 = fix_ssl_opts(PropList),
+    [{loop, {pundun_bp_session, init, [[{handler, pundun_pb_handler}]]}}
+      | PropList1].
 
 -spec fix_ssl_opts(List :: [{atom(), term()}]) ->
     [{atom(), term()}].
