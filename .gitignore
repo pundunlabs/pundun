@@ -55,3 +55,6 @@ rebar3.crashdump
 rebar.lock
 config/slib/
 compile_commands.json
+priv/ssh/*
+priv/*.pem
+apollo/

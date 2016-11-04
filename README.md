@@ -42,7 +42,7 @@ $ cd <PROD>/lib/pundun<VERSION>/priv/
 $ openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 1095
 ```
 
-### Configuring SHH Daemon>
+### Configuring SSH Daemon
 
 Edit 'PROD/etc/pundun.yaml'.
 Modify 'pundun_cli_options' parameter.

@@ -42,6 +42,7 @@
 -include_lib("gb_log/include/gb_log.hrl").
 
 -define(TIMEOUT, 600000). %% 10 minutes.
+-define(CT, correlation_table).
 
 -define(WAIT_FOR_CLIENT_FIRST, 0).
 -define(WAIT_FOR_CLIENT_FINAL, 1).
@@ -81,7 +82,7 @@ start_link() ->
 -spec respond(Pid :: pid(), Data :: binary()) ->
     ok.
 respond(Pid, Data) ->
-    gen_server:cast(Pid, {respond, Data}).
+    gen_server:cast(Pid, {respond, Data, self()}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -120,6 +121,8 @@ init(Socket, Opts, Args) ->
 		   options = Opts},
     Timeout = ?TIMEOUT,
     ok = mochiweb_socket:setopts(Socket, [{active, once}]),
+    ets:new(?CT, [named_table]),
+    process_flag(trap_exit, true),
     gen_server:enter_loop(?MODULE, [], State, Timeout).
 
 %%--------------------------------------------------------------------
@@ -150,9 +153,10 @@ handle_call(_Request, _From, State) ->
 %%                                  {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_cast({respond, Data}, State) ->
+handle_cast({respond, Data, Pid}, State) ->
     ?debug("Responding with ~p", [Data]),
-    ok = mochiweb_socket:send(State#state.socket, Data),
+    [{Pid, Corr}] = ets:lookup(?CT, Pid),
+    ok = mochiweb_socket:send(State#state.socket, [Corr, Data]),
     {noreply, State};
 handle_cast(_Msg, State) ->
     ?debug("Unhandled cast message received: ~p", [_Msg]),
@@ -168,11 +172,14 @@ handle_cast(_Msg, State) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_info({ssl, Socket, Data}, State = #state{scram_state = ?AUTHENTICATED,
-						socket = {ssl, Socket},
-						handler = Handler}) ->
+handle_info({ssl, Socket, <<B1,B2,Data/binary>>},
+	    State = #state{scram_state = ?AUTHENTICATED,
+			   socket = {ssl, Socket},
+			   handler = Handler}) ->
     ?debug("Received ssl data: ~p",[Data]),
-    spawn_link(Handler, handle_incomming_data, [Data, self()]),
+    Pid = spawn_link(Handler, handle_incomming_data, [Data, self()]),
+    monitor(process, Pid),
+    ets:insert(?CT, {Pid, <<B1,B2>>}),
     ok = mochiweb_socket:setopts({ssl, Socket}, [{active, once}]),
     {noreply, State, ?TIMEOUT};
 handle_info({ssl, Socket, Data}, State = #state{scram_state = ?WAIT_FOR_CLIENT_FIRST,
@@ -182,10 +189,18 @@ handle_info({ssl, Socket, Data}, State = #state{scram_state = ?WAIT_FOR_CLIENT_F
     ok = mochiweb_socket:setopts({ssl, Socket}, [{active, once}]),
     {noreply, NewState, ?TIMEOUT};
 handle_info({ssl, Socket, Data}, State = #state{scram_state = ?WAIT_FOR_CLIENT_FINAL,
-						socket = {ssl, Socket}}) ->
+						socket = {ssl, Socket},
+						handler = Handler}) ->
     ?debug("Handle SCRAM Client Final Message: ~p",[Data]),
     {ok, NewState} = handle_client_final_message(Data, State),
-    ok = mochiweb_socket:setopts({ssl, Socket}, [{active, once}]),
+    Sopts =
+	case {Handler, NewState#state.scram_state} of
+	    {pundun_pb_handler, ?AUTHENTICATED} ->
+		[{active, once}, {packet, 4}];
+	    _ ->
+		[{active, once}]
+	end,
+    ok = mochiweb_socket:setopts({ssl, Socket}, Sopts),
     {noreply, NewState, ?TIMEOUT};
 handle_info({ssl, Socket, Data}, State = #state{socket = {ssl, Socket}}) ->
     ?debug("Received ssl data: ~p",[Data]),
@@ -194,31 +209,15 @@ handle_info({ssl, Socket, Data}, State = #state{socket = {ssl, Socket}}) ->
 handle_info({ssl_closed, Socket}, State = #state{socket = {ssl, Socket}}) ->
     ?debug("Received ssl_closed, stopping..",[]),
     {stop, normal, State};
-handle_info({tcp, Socket, Data}, State = #state{scram_state = ?AUTHENTICATED,
-						socket = Socket,
-						handler = Handler}) ->
-    ?debug("Received tcp data: ~p",[Data]),
-    spawn_link(Handler, handle_incomming_data, [Data, self()]),
-    ok = mochiweb_socket:setopts(Socket, [{active, once}]),
-    {noreply, State, ?TIMEOUT};
-handle_info({tcp, Socket, Data}, State = #state{scram_state = ?WAIT_FOR_CLIENT_FIRST,
-						socket = Socket}) ->
-    ?debug("Start SCRAM AUTH: ~p",[Data]),
-    {ok, NewState} = handle_client_first_message(Data, State),
-    ok = mochiweb_socket:setopts(Socket, [{active, once}]),
-    {noreply, NewState, ?TIMEOUT};
-handle_info({tcp, Socket, Data}, State = #state{scram_state = ?WAIT_FOR_CLIENT_FINAL,
-						socket = Socket}) ->
-    ?debug("Handle SCRAM Client Final Message: ~p",[Data]),
-    {ok, NewState} = handle_client_final_message(Data, State),
-    ok = mochiweb_socket:setopts(Socket, [{active, once}]),
-    {noreply, NewState, ?TIMEOUT};
-handle_info({tcp_closed, Socket}, State = #state{socket = Socket}) ->
-    ?debug("Received tcp_closed, stopping..",[]),
-    {stop, normal, State};
 handle_info(timeout, State) ->
     ?debug("Timeout occured, stopping..",[]),
     {stop, normal, State};
+handle_info({'DOWN', _, process, Pid, _}, State) ->
+    ets:delete(?CT, Pid),
+    {noreply, State};
+handle_info({'EXIT', Pid, _Reason}, State) ->
+     ets:delete(?CT, Pid),
+    {noreply, State};
 handle_info(_Info, State) ->
     ?debug("Unhandled Info recieved: ~p",[_Info]),
     {noreply, State}.

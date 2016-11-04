@@ -143,12 +143,13 @@ apply_procedure(_) ->
 		    TransactionId :: integer(),
 		    Response :: {atom(), term()}) ->
     ok.
+
 send_response(To, Version, TransactionId, Response) ->
     PDU = #'ApolloPdu'{version = Version,
 		       transaction_id = TransactionId,
 		       procedure = Response},
     ?debug("Response PDU: ~p", [PDU]),
-    {ok, Bin} = apollo_pb:encode_msg(PDU),
+    Bin = apollo_pb:encode_msg(PDU),
     pundun_bp_session:respond(To, Bin).
 
 -spec make_response(Choice :: ok |
@@ -170,7 +171,7 @@ send_response(To, Version, TransactionId, Response) ->
 make_response(ok, ok) ->
     {response, #'Response'{result = {ok, "ok"}}};
 make_response(columns, {ok, Columns}) ->
-    wrap_response({columns, make_seq_of_fields(Columns)});
+    wrap_response({columns, make_fields(Columns)});
 make_response(key_columns_pair, {ok, {Key, Value}}) ->
     wrap_response({key_columns_pair,
 		   #'KeyColumnsPair'{key = make_seq_of_fields(Key),
@@ -199,8 +200,9 @@ make_response(key_columns_list, {ok, KVL}) ->
     KeyColumnsList = #'KeyColumnsList'{list = List},
     wrap_response({key_columns_list, KeyColumnsList});
 make_response(proplist, {ok, List}) ->
-    Proplist = [#'Field'{name = atom_to_list(P),
-                         value = make_value(A)} || {P,A} <- List],
+    Fields = [#'Field'{name = atom_to_list(P),
+		       value = make_value(A)} || {P,A} <- List],
+    Proplist = #'Fields'{fields = Fields},
     wrap_response({proplist, Proplist});
 make_response(kcp_it, {ok, {Key, Value}, Ref}) ->
     Kcp = #'KeyColumnsPair'{key = make_seq_of_fields(Key),
@@ -232,7 +234,7 @@ wrap_response(Term) ->
 make_options([#'TableOption'{}|_] = L) ->
     Options = [O || #'TableOption'{opt = O} <- L],
     make_options(Options, []);
-make_options(undefined) ->
+make_options([]) ->
     [].
 
 -spec make_options(TabOptions :: [pbp_table_option()],
@@ -265,8 +267,18 @@ make_options([{hash_exclude, #'FieldNames'{field_names = FN}} | Rest], Acc) ->
 make_options([_ | Rest], Acc) ->
     make_options(Rest, Acc).
 
+-spec make_fields(Key :: [{string(), term()}]) ->
+    #'Fields'{}.
+make_fields(Key) when is_list(Key)->
+    Fields = [#'Field'{name = Name, value = make_value(Value)}
+		|| {Name, Value} <- Key],
+    #'Fields'{fields = Fields};
+make_fields(Else)->
+    ?debug("Invalid key: ~p",[Else]),
+    Else.
+
 -spec make_seq_of_fields(Key :: [{string(), term()}]) ->
-    [#'Field'{}].
+    #'Fields'{}.
 make_seq_of_fields(Key) when is_list(Key)->
     [#'Field'{name = Name, value = make_value(Value)}
 	|| {Name, Value} <- Key];
@@ -275,7 +287,7 @@ make_seq_of_fields(Else)->
     Else.
 
 -spec make_value(V :: term()) ->
-    {bool, Bool :: true | false} |
+    {boolean, Bool :: true | false} |
     {int, Int :: integer()} |
     {binary, Bin :: binary()} |
     {null, Null :: undefined} |
@@ -289,13 +301,13 @@ make_value(V) when is_integer(V) ->
 make_value(V) when is_float(V) ->
     {double, V};
 make_value(true) ->
-    {bool, true};
+    {boolean, true};
 make_value(false) ->
-    {bool, false};
+    {boolean, false};
 make_value(V) when is_list(V) ->
-    case io_lib:printable_unicode_list(V) of
-	true ->
-	    {string, V};
+    case is_list_of_printables(V) of
+	{true, L} ->
+	    {string, L};
 	false ->
 	    {binary, list_to_binary(V)}
     end;
@@ -305,6 +317,17 @@ make_value(A) when is_atom(A) ->
     {string, atom_to_list(A)};
 make_value(T) when is_tuple(T) ->
     {binary, term_to_binary(T)}.
+
+is_list_of_printables(L) ->
+    case io_lib:printable_unicode_list(L) of
+	true -> {true, L};
+	false ->
+	    case io_lib:printable_unicode_list(lists:flatten(L)) of
+		true ->
+		    {true, lists:flatten([E++" "||E <- L])};
+		false -> false
+	    end
+    end.
 
 -spec strip_fields(Fields :: [#'Field'{}]) ->
     [{string(), term()}].
