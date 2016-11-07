@@ -147,7 +147,7 @@ send_response(To, Version, TransactionId, Response) ->
 			transactionId = TransactionId,
 			procedure = Response},
     ?debug("Response PDU: ~p", [PDU]),
-    Bin = 'APOLLO-PDU-Descriptions':encode('APOLLO-PDU', PDU),
+    {ok, Bin} = 'APOLLO-PDU-Descriptions':encode('APOLLO-PDU', PDU),
     pundun_bp_session:respond(To, Bin).
 
 -spec make_response(Choice :: ok |

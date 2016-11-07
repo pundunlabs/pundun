@@ -191,13 +191,12 @@ handle_info({ssl, Socket, Data}, State = #state{scram_state = ?WAIT_FOR_CLIENT_F
     ok = mochiweb_socket:setopts({ssl, Socket}, [{active, once}]),
     {noreply, NewState, ?TIMEOUT};
 handle_info({ssl, Socket, Data}, State = #state{scram_state = ?WAIT_FOR_CLIENT_FINAL,
-						socket = {ssl, Socket},
-						handler = Handler}) ->
+						socket = {ssl, Socket}}) ->
     ?debug("Handle SCRAM Client Final Message: ~p",[Data]),
     {ok, NewState} = handle_client_final_message(Data, State),
     Sopts =
-	case {Handler, NewState#state.scram_state} of
-	    {pundun_pb_handler, ?AUTHENTICATED} ->
+	case NewState#state.scram_state of
+	    ?AUTHENTICATED ->
 		[{active, once}, {packet, 4}];
 	    _ ->
 		[{active, once}]
