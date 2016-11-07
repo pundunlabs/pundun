@@ -42,7 +42,6 @@
 -include_lib("gb_log/include/gb_log.hrl").
 
 -define(TIMEOUT, 600000). %% 10 minutes.
--define(CT, correlation_table).
 
 -define(WAIT_FOR_CLIENT_FIRST, 0).
 -define(WAIT_FOR_CLIENT_FINAL, 1).
@@ -52,7 +51,8 @@
 		scram_data,
 		socket,
 		handler,
-		options
+		options,
+		correlation_table
 		}).
 
 %%%===================================================================
@@ -116,12 +116,13 @@ init(Socket, Opts, Args) ->
     ?debug("Initialize pundun binary protocol server. Opts: ~p, Args: ~p",
     [[{socket, Socket}|Opts], Args]),
     Handler = proplists:get_value(handler, Args),
+    Tid = ets:new(correlation_table, []),
     State = #state{socket = Socket,
 		   handler = Handler,
-		   options = Opts},
+		   options = Opts,
+		   correlation_table = Tid},
     Timeout = ?TIMEOUT,
     ok = mochiweb_socket:setopts(Socket, [{active, once}]),
-    ets:new(?CT, [named_table]),
     process_flag(trap_exit, true),
     gen_server:enter_loop(?MODULE, [], State, Timeout).
 
@@ -153,9 +154,9 @@ handle_call(_Request, _From, State) ->
 %%                                  {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_cast({respond, Data, Pid}, State) ->
+handle_cast({respond, Data, Pid}, State = #state{correlation_table = Tid}) ->
     ?debug("Responding with ~p", [Data]),
-    [{Pid, Corr}] = ets:lookup(?CT, Pid),
+    [{Pid, Corr}] = ets:lookup(Tid, Pid),
     ok = mochiweb_socket:send(State#state.socket, [Corr, Data]),
     {noreply, State};
 handle_cast(_Msg, State) ->
@@ -175,11 +176,12 @@ handle_cast(_Msg, State) ->
 handle_info({ssl, Socket, <<B1,B2,Data/binary>>},
 	    State = #state{scram_state = ?AUTHENTICATED,
 			   socket = {ssl, Socket},
-			   handler = Handler}) ->
+			   handler = Handler,
+			   correlation_table = Tid}) ->
     ?debug("Received ssl data: ~p",[Data]),
     Pid = spawn_link(Handler, handle_incomming_data, [Data, self()]),
     monitor(process, Pid),
-    ets:insert(?CT, {Pid, <<B1,B2>>}),
+    ets:insert(Tid, {Pid, <<B1,B2>>}),
     ok = mochiweb_socket:setopts({ssl, Socket}, [{active, once}]),
     {noreply, State, ?TIMEOUT};
 handle_info({ssl, Socket, Data}, State = #state{scram_state = ?WAIT_FOR_CLIENT_FIRST,
@@ -212,11 +214,13 @@ handle_info({ssl_closed, Socket}, State = #state{socket = {ssl, Socket}}) ->
 handle_info(timeout, State) ->
     ?debug("Timeout occured, stopping..",[]),
     {stop, normal, State};
-handle_info({'DOWN', _, process, Pid, _}, State) ->
-    ets:delete(?CT, Pid),
+handle_info({'DOWN', _, process, Pid, _},
+	    State = #state{correlation_table = Tid}) ->
+    ets:delete(Tid, Pid),
     {noreply, State};
-handle_info({'EXIT', Pid, _Reason}, State) ->
-     ets:delete(?CT, Pid),
+handle_info({'EXIT', Pid, _Reason},
+	    State = #state{correlation_table = Tid}) ->
+     ets:delete(Tid, Pid),
     {noreply, State};
 handle_info(_Info, State) ->
     ?debug("Unhandled Info recieved: ~p",[_Info]),

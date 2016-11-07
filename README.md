@@ -39,7 +39,7 @@ To generate self signed certificate files, one may use below commands.
 
 ```sh
 $ cd <PROD>/lib/pundun<VERSION>/priv/
-$ openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 1095
+$ openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 1095 -nodes
 ```
 
 ### Configuring SSH Daemon
@@ -58,7 +58,7 @@ Under specified 'system_dir', place public and private keys for ssh host.
 ```sh
 $ ssh-keygen -t rsa -f <system_dir>/ssh_host_rsa_key
 ```
-Store any public key in '<PROD>/lib/pundun<VERSION>/priv/<system_dir>/authorized_keys' file.
+Store any public key in 'authorized_keys' file at the configured 'system_dir'.
 
 ### Initial configuration of the sytem and starting the node
 
