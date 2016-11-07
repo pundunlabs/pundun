@@ -224,7 +224,9 @@ wrap_response(Term) ->
 			    {comparator, comparator()} |
 			    {timeSeries, boolean()} |
 			    {shards, integer()} |
-			    {clusters, [#'Cluster'{}]}.
+			    {distributed, boolean()} |
+			    {replication_factor, integer()} |
+			    {hash_exlude, [string()]}.
 
 -spec make_options(TabOptions :: [pbp_table_option()]) ->
     [table_option()].
@@ -258,14 +260,14 @@ make_options([{timeSeries, T} | Rest], Acc) ->
     make_options(Rest, [{time_series, T} | Acc]);
 make_options([{shards, S} | Rest], Acc) ->
     make_options(Rest, [{shards, S} | Acc]);
-make_options([{clusters, C} | Rest], Acc) ->
-    Clusters = [#enterdb_cluster{name = Name, replication_factor = RF} ||
-	#'Cluster'{name = Name, replicationFactor = RF} <- C],
-    make_options(Rest, [{clusters, Clusters} | Acc]);
+make_options([{distributed, B} | Rest], Acc) ->
+    make_options(Rest, [{distributed,  B} | Acc]);
+make_options([{replicationFactor, RF} | Rest], Acc) ->
+    make_options(Rest, [{replication_factor,  RF} | Acc]);
+make_options([{hashExclude, HE} | Rest], Acc) ->
+    make_options(Rest, [{hash_exclude,  HE} | Acc]);
 make_options([_ | Rest], Acc) ->
     make_options(Rest, Acc).
-
-
 
 -spec make_seq_of_fields(Key :: [{string(), term()}]) ->
     [#'Field'{}].
