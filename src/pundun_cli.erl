@@ -44,7 +44,8 @@
 -include_lib("gb_conf/include/gb_conf.hrl").
 
 start_link() ->
-    gb_cli_server:start_link(?MODULE).
+    gb_cli_server:start_link(?MODULE),
+    ignore.
 
 %%%===================================================================
 %%% CLI callbacks
