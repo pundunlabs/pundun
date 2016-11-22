@@ -57,12 +57,9 @@ handle_pdu(#'ApolloPdu'{version = Version,
     {atom(), term()}.
 apply_procedure({create_table, #'CreateTable'{table_name = TabName,
 					      keys = KeysDef,
-					      columns = ColumnsDef,
-					      indexes = IndexesDef,
 					      table_options = TabOptions}})->
     Options = make_options(TabOptions),
-    Result = enterdb:create_table(TabName, KeysDef, ColumnsDef,
-				  IndexesDef, Options),
+    Result = enterdb:create_table(TabName, KeysDef, Options),
     make_response(ok, Result);
 apply_procedure({delete_table, #'DeleteTable'{table_name = TabName}}) ->
     Result = enterdb:delete_table(TabName),
@@ -96,6 +93,14 @@ apply_procedure({write, #'Write'{table_name = TabName,
     ?debug("Write  ~p:~p", [StripKey,StripColumns]),
     Result = enterdb:write(TabName, StripKey, StripColumns),
     make_response(ok, Result);
+apply_procedure({update, #'Update'{table_name = TabName,
+				    key = Key,
+				    update_operation = UpdateOperation}}) ->
+    StripKey = strip_fields(Key),
+    Op = translate_update_operation(UpdateOperation),
+    ?debug("Update  ~p:~p", [StripKey, Op]),
+    Result = enterdb:update(TabName, StripKey, Op),
+    make_response(columns, Result);
 apply_procedure({delete, #'Delete'{table_name = TabName,
 				   key = Key}}) ->
     StripKey = strip_fields(Key),
@@ -210,7 +215,10 @@ make_response(kcp_it, {ok, {Key, Value}, Ref}) ->
     wrap_response({kcp_it, #'KcpIt'{key_columns_pair = Kcp,
 				   it = term_to_binary(Ref)}});
 make_response(_, {error, Reason}) ->
-    FullStr = lists:flatten(io_lib:format("~p",[Reason])),
+    FullStr = lists:flatten(io_lib:format("~p",[{error, Reason}])),
+    {error, #'Error'{cause = {system, FullStr}}};
+make_response(_, {badrpc, Reason}) ->
+    FullStr = lists:flatten(io_lib:format("~p",[{badrpc, Reason}])),
     {error, #'Error'{cause = {system, FullStr}}}.
 
 -spec wrap_response(Term :: term()) ->
@@ -416,3 +424,51 @@ translate_wrapper(#'Wrapper'{num_of_buckets = NB,
 		     size_margin = SM};
 translate_wrapper(undefined) ->
     undefined.
+
+-spec translate_update_operation(UpdateOperation :: [#'UpdateOperation'{}]) ->
+    update_op().
+translate_update_operation(UpdateOperation) ->
+    translate_update_operation(UpdateOperation, []).
+
+-spec translate_update_operation(UpdateOperation :: [#'UpdateOperation'{}],
+				 Acc :: update_op()) ->
+    update_op().
+translate_update_operation([UpOp | Rest], Acc) ->
+    #'UpdateOperation'{field = F,
+		       update_instruction  = UpInst,
+		       value = Value,
+		       default_value = DefaultValue} = UpOp,
+    I = translate_update_instruction(UpInst),
+    V = translate_value(Value),
+    InitList =
+	case DefaultValue of
+	    #'Value'{} ->
+		DV = translate_value(DefaultValue),
+		[{1,F}, {2, I}, {3, V}, {4, DV}];
+	    undefined ->
+		[{1,F}, {2, I}, {3, V}]
+	end,
+    Tuple = erlang:make_tuple(length(InitList), undefined, InitList),
+    translate_update_operation(Rest, [Tuple | Acc]);
+translate_update_operation([], Acc) ->
+    lists:reverse(Acc).
+
+-spec translate_value(#'Value'{} | undefined) ->
+    term().
+translate_value(#'Value'{value = {_, Term}}) ->
+    Term;
+translate_value(#'Value'{value = undefined}) ->
+    undefined.
+
+-spec translate_update_instruction(UpInst :: #'UpdateInstruction'{}) ->
+    update_instruction().
+translate_update_instruction(#'UpdateInstruction'{instruction = 'INCREMENT',
+						  treshold = undefined,
+						  set_value = undefined}) ->
+    increment;
+translate_update_instruction(#'UpdateInstruction'{instruction = 'INCREMENT',
+						  treshold = Treshold,
+						  set_value = SetValue}) ->
+    {increment, Treshold, SetValue};
+translate_update_instruction(#'UpdateInstruction'{instruction = 'OVERWRITE'}) ->
+    overwrite.

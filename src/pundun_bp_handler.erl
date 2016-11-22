@@ -56,12 +56,9 @@ handle_pdu(#'APOLLO-PDU'{version = Version,
     {atom(), term()}.
 apply_procedure({createTable, #'CreateTable'{tableName = TabName,
 					     keys = KeysDef,
-					     columns = ColumnsDef,
-					     indexes = IndexesDef,
 					     tableOptions = TabOptions}})->
     Options = make_options(TabOptions),
-    Result = enterdb:create_table(TabName, KeysDef, ColumnsDef,
-				  IndexesDef, Options),
+    Result = enterdb:create_table(TabName, KeysDef, Options),
     make_response(ok, Result);
 apply_procedure({deleteTable, #'DeleteTable'{tableName = TabName}}) ->
     Result = enterdb:delete_table(TabName),
@@ -95,6 +92,14 @@ apply_procedure({write, #'Write'{tableName = TabName,
     ?debug("Write  ~p:~p", [StripKey,StripColumns]),
     Result = enterdb:write(TabName, StripKey, StripColumns),
     make_response(ok, Result);
+apply_procedure({update, #'Update'{tableName = TabName,
+				   key = Key,
+				   updateOperations = UpdateOperations}}) ->
+    StripKey = strip_fields(Key),
+    Op = translate_update_operations(UpdateOperations),
+    ?debug("Write  ~p:~p", [StripKey, Op]),
+    Result = enterdb:update(TabName, StripKey, Op),
+    make_response(columns, Result);
 apply_procedure({delete, #'Delete'{tableName = TabName,
 				   key = Key}}) ->
     StripKey = strip_fields(Key),
@@ -207,7 +212,11 @@ make_response(kcpIt, {ok, {Key, Value}, Ref}) ->
     wrap_response({kcpIt, #'KcpIt'{keyColumnsPair = Kcp,
 				   it = term_to_binary(Ref)}});
 make_response(_, {error, Reason}) ->
-    FullStr = lists:flatten(io_lib:format("~p",[Reason])),
+    FullStr = lists:flatten(io_lib:format("~p",[{error, Reason}])),
+    Str = lists:sublist(FullStr, ?'maxCauseLength'),
+    {error, #'Error'{cause = {system, Str}}};
+make_response(_, {badrpc, Reason}) ->
+    FullStr = lists:flatten(io_lib:format("~p",[{badrpc, Reason}])),
     Str = lists:sublist(FullStr, ?'maxCauseLength'),
     {error, #'Error'{cause = {system, Str}}}.
 
@@ -382,3 +391,42 @@ translate_options({type, etsLeveldbWrapped}) ->
     {type, ets_leveldb_wrapped};
 translate_options(Option) ->
     Option.
+
+-spec translate_update_operations(UpdateOperations :: [#'UpdateOperation'{}])->
+    update_op().
+translate_update_operations(UpdateOperations) ->
+    translate_update_operations(UpdateOperations, []).
+
+-spec translate_update_operations(UpdateOperations :: [#'UpdateOperation'{}],
+				  Acc :: update_op())->
+    update_op().
+translate_update_operations([UpOp | Rest], Acc) ->
+    #'UpdateOperation'{field = F,
+		       updateInstruction = UpInst,
+		       value = {_, V},
+		       defaultValue = DefaultValue} = UpOp,
+    I = translate_update_instruction(UpInst),
+    InitList =
+	case DefaultValue of
+	    {_, DV} ->
+		[{1,F}, {2, I}, {3, V}, {4, DV}];
+	    asn1_NOVALUE ->
+		[{1,F}, {2, I}, {3, V}]
+	end,
+    Tuple = erlang:make_tuple(length(InitList), undefined, InitList),
+    translate_update_operations(Rest, [Tuple | Acc]);
+translate_update_operations([], Acc) ->
+    lists:reverse(Acc).
+
+-spec translate_update_instruction(UpInst :: #'UpdateInstruction'{}) ->
+    update_instruction().
+translate_update_instruction(#'UpdateInstruction'{instruction = increment,
+						  treshold = undefined,
+						  setValue = undefined}) ->
+    increment;
+translate_update_instruction(#'UpdateInstruction'{instruction = increment,
+						  treshold = Treshold,
+						  setValue = SetValue}) ->
+    {increment, Treshold, SetValue};
+translate_update_instruction(#'UpdateInstruction'{instruction = overwrite}) ->
+    overwrite.
