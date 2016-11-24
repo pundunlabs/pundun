@@ -15,20 +15,6 @@
 %% limitations under the License.
 %%%===================================================================
 
--type field_name() :: string().
--type update_treshold() :: pos_integer().
--type update_setvalue() :: pos_integer().
--type update_instruction() :: increment |
-                              {increment, update_treshold(), update_setvalue()}
-|
-                              overwrite.
--type update_data() :: pos_integer() | term().
--type update_default() :: pos_integer() | term().
--type update_op() :: [
-                      {field_name(), update_instruction(), update_data()}|
-                      {field_name(), update_instruction(), update_data(), update_default()}
-                     ].
-
 -record(pundun_user, {username :: string(),
 		      salt :: string(),
 		      iteration_count :: string(),

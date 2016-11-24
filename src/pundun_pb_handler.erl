@@ -426,13 +426,13 @@ translate_wrapper(undefined) ->
     undefined.
 
 -spec translate_update_operation(UpdateOperation :: [#'UpdateOperation'{}]) ->
-    update_op().
+    term().
 translate_update_operation(UpdateOperation) ->
     translate_update_operation(UpdateOperation, []).
 
 -spec translate_update_operation(UpdateOperation :: [#'UpdateOperation'{}],
-				 Acc :: update_op()) ->
-    update_op().
+				 Acc :: term()) ->
+    term().
 translate_update_operation([UpOp | Rest], Acc) ->
     #'UpdateOperation'{field = F,
 		       update_instruction  = UpInst,
@@ -455,20 +455,22 @@ translate_update_operation([], Acc) ->
 
 -spec translate_value(#'Value'{} | undefined) ->
     term().
+translate_value(#'Value'{value = {null, _}}) ->
+    undefined;
 translate_value(#'Value'{value = {_, Term}}) ->
-    Term;
-translate_value(#'Value'{value = undefined}) ->
-    undefined.
+    Term.
 
 -spec translate_update_instruction(UpInst :: #'UpdateInstruction'{}) ->
-    update_instruction().
+    term().
 translate_update_instruction(#'UpdateInstruction'{instruction = 'INCREMENT',
-						  treshold = undefined,
-						  set_value = undefined}) ->
+						  treshold = <<>>,
+						  set_value = <<>>}) ->
     increment;
 translate_update_instruction(#'UpdateInstruction'{instruction = 'INCREMENT',
 						  treshold = Treshold,
 						  set_value = SetValue}) ->
-    {increment, Treshold, SetValue};
+    {increment,
+     binary:decode_unsigned(Treshold, big),
+     binary:decode_unsigned(SetValue, big)};
 translate_update_instruction(#'UpdateInstruction'{instruction = 'OVERWRITE'}) ->
     overwrite.

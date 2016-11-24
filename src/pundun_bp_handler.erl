@@ -393,13 +393,13 @@ translate_options(Option) ->
     Option.
 
 -spec translate_update_operations(UpdateOperations :: [#'UpdateOperation'{}])->
-    update_op().
+    term().
 translate_update_operations(UpdateOperations) ->
     translate_update_operations(UpdateOperations, []).
 
 -spec translate_update_operations(UpdateOperations :: [#'UpdateOperation'{}],
-				  Acc :: update_op())->
-    update_op().
+				  Acc :: term())->
+    term().
 translate_update_operations([UpOp | Rest], Acc) ->
     #'UpdateOperation'{field = F,
 		       updateInstruction = UpInst,
@@ -419,7 +419,7 @@ translate_update_operations([], Acc) ->
     lists:reverse(Acc).
 
 -spec translate_update_instruction(UpInst :: #'UpdateInstruction'{}) ->
-    update_instruction().
+    term().
 translate_update_instruction(#'UpdateInstruction'{instruction = increment,
 						  treshold = undefined,
 						  setValue = undefined}) ->

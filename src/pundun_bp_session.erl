@@ -181,7 +181,7 @@ handle_info({ssl, Socket, <<B1,B2,Data/binary>>},
     ?debug("Received ssl data: ~p",[Data]),
     Pid = spawn_link(Handler, handle_incomming_data, [Data, self()]),
     monitor(process, Pid),
-    ets:insert(Tid, {Pid, <<B1,B2>>}),
+    register_transaction(Tid, {Pid, <<B1,B2>>}),
     ok = mochiweb_socket:setopts({ssl, Socket}, [{active, once}]),
     {noreply, State, ?TIMEOUT};
 handle_info({ssl, Socket, Data}, State = #state{scram_state = ?WAIT_FOR_CLIENT_FIRST,
@@ -377,4 +377,16 @@ get_salted_password(Username) ->
 	    {ok, SaltedPassword};
 	_ ->
 	    {error, "unknown-user"}
+    end.
+
+-spec register_transaction(Tid :: atom(),
+			  {Pid :: pid(), CorrID :: binary()}) ->
+    ok | {error, Result :: term()}.
+register_transaction(Tid, {Pid, CorrID}) ->
+    case ets:lookup(Tid, Pid) of
+	[] ->
+	    ets:insert(Tid, {Pid, CorrID});
+	[_] ->
+	    ?error("Transaction ID: ~p in use..", [CorrID]),
+	    {error, "transaction_id"}
     end.
