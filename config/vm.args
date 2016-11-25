@@ -22,3 +22,6 @@
 ## Enable SMP support even if there is only one logical processor detected
 ## Without SMP support, dirty_schedulers were not enabled
 -smp
+
+## Sets the maximum number of simultaneously existing processes.
++P 1048576
