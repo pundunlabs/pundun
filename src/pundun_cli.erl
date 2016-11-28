@@ -19,10 +19,14 @@
 %% @end
 %%%===================================================================
 
-
 -module(pundun_cli).
 
+-behaviour(gen_server).
+
 -export([start_link/0]).
+-export([init/1, terminate/2,
+	 handle_call/3, handle_cast/2,
+	 handle_info/2, code_change/3]).
 
 -export([welcome_msg/0,
 	 routines/0,
@@ -44,8 +48,24 @@
 -include_lib("gb_conf/include/gb_conf.hrl").
 
 start_link() ->
-    gb_cli_server:start_link(?MODULE),
-    ignore.
+    gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+
+init(_Args) ->
+    process_flag(trap_exit, true),
+    case gb_cli_server:start_link(?MODULE) of
+	{ok, SshDaemonRef} ->
+	    {ok, #{ssh_daemon_ref => SshDaemonRef}};
+	{error, Reason} ->
+	    {stop, Reason, #{}}
+    end.
+
+handle_call(_, _, State) -> {reply, ok, State}.
+handle_cast(_, State) -> {noreply, State}.
+handle_info(_, State) -> {noreply, State}.
+code_change(_,State,_) -> {ok, State}.
+terminate(Reason, #{ssh_daemon_ref := SshDaemonRef}) ->
+    ?debug("Terminating Pundun CLI, ~p", [Reason]),
+    ssh:stop_daemon(SshDaemonRef).
 
 %%%===================================================================
 %%% CLI callbacks
