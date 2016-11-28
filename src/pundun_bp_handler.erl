@@ -75,8 +75,8 @@ apply_procedure({tableInfo, #'TableInfo'{tableName = TabName,
     make_response(proplist, Result);
 apply_procedure({tableInfo, #'TableInfo'{tableName = TabName,
 					 attributes = Attributes}}) ->
-    ValidAttribites = validate_attributes(Attributes, []),
-    Result = enterdb:table_info(TabName, ValidAttribites),
+    ValidAttributes = validate_attributes(Attributes, []),
+    Result = enterdb:table_info(TabName, ValidAttributes),
     make_response(proplist, Result);
 apply_procedure({read, #'Read'{tableName = TabName,
 			       key = Key}}) ->
@@ -134,10 +134,10 @@ apply_procedure({seek, #'Seek'{tableName = TabName,
     Result = enterdb:seek(TabName, strip_fields(Key)),
     make_response(kcpIt, Result);
 apply_procedure({next, #'Next'{it = It}}) ->
-    Result = enterdb:next(binary_to_term(It)),
+    Result = enterdb:next(It),
     make_response(keyColumnsPair, Result);
 apply_procedure({prev, #'Prev'{it = It}}) ->
-    Result = enterdb:prev(binary_to_term(It)),
+    Result = enterdb:prev(It),
     make_response(keyColumnsPair, Result);
 apply_procedure(_) ->
     {error, #'Error'{cause = {protocol, "unknown procedure"}}}.
@@ -210,7 +210,7 @@ make_response(kcpIt, {ok, {Key, Value}, Ref}) ->
     Kcp = #'KeyColumnsPair'{key = make_seq_of_fields(Key),
 			    columns = make_seq_of_fields(Value)},
     wrap_response({kcpIt, #'KcpIt'{keyColumnsPair = Kcp,
-				   it = term_to_binary(Ref)}});
+				   it = Ref}});
 make_response(_, {error, Reason}) ->
     FullStr = lists:flatten(io_lib:format("~p",[{error, Reason}])),
     Str = lists:sublist(FullStr, ?'maxCauseLength'),

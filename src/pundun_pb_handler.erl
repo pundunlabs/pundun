@@ -135,10 +135,10 @@ apply_procedure({seek, #'Seek'{table_name = TabName,
     Result = enterdb:seek(TabName, strip_fields(Key)),
     make_response(kcp_it, Result);
 apply_procedure({next, #'Next'{it = It}}) ->
-    Result = enterdb:next(binary_to_term(It)),
+    Result = enterdb:next(It),
     make_response(key_columns_pair, Result);
 apply_procedure({prev, #'Prev'{it = It}}) ->
-    Result = enterdb:prev(binary_to_term(It)),
+    Result = enterdb:prev(It),
     make_response(key_columns_pair, Result);
 apply_procedure(_) ->
     {error, #'Error'{cause = {protocol, "unknown procedure"}}}.
@@ -213,7 +213,7 @@ make_response(kcp_it, {ok, {Key, Value}, Ref}) ->
     Kcp = #'KeyColumnsPair'{key = make_seq_of_fields(Key),
 			    columns = make_seq_of_fields(Value)},
     wrap_response({kcp_it, #'KcpIt'{key_columns_pair = Kcp,
-				   it = term_to_binary(Ref)}});
+				   it = Ref}});
 make_response(_, {error, Reason}) ->
     FullStr = lists:flatten(io_lib:format("~p",[{error, Reason}])),
     {error, #'Error'{cause = {system, FullStr}}};
