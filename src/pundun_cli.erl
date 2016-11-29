@@ -23,7 +23,12 @@
 
 -behaviour(gen_server).
 
--export([start_link/0]).
+-export([start_link/0,
+	 get_topology_commit_ids/0,
+	 get_hash/1,
+	 get_node_names/0,
+	 get_node/1]).
+
 -export([init/1, terminate/2,
 	 handle_call/3, handle_cast/2,
 	 handle_info/2, code_change/3]).
@@ -37,15 +42,37 @@
 
 -export([show_tables/0,
 	 table_info/1,
+	 cluster/1,
 	 cm/1,
 	 logger/1]).
 
 -export([table_info_expand/1,
+	 cluster_expand/1,
 	 cm_expand/1,
 	 logger_expand/1]).
 
 -include_lib("gb_log/include/gb_log.hrl").
 -include_lib("gb_conf/include/gb_conf.hrl").
+
+-spec get_topology_commit_ids() ->
+    {ok, Ids :: [string()]} | {error, Reason :: term()}.
+get_topology_commit_ids() ->
+    gen_server:call(?MODULE, get_topology_commit_ids).
+
+-spec get_hash(CommitId :: string()) ->
+    {ok, Hash :: integer()} | {error, Reason :: term()}.
+get_hash(CommitId) ->
+    gen_server:call(?MODULE, {get_hash, CommitId}).
+
+-spec get_node_names() ->
+    {ok, NodeNames :: [string()]} | {error, Reason :: term()}.
+get_node_names() ->
+    gen_server:call(?MODULE, get_node_names).
+
+-spec get_node(NodeName :: string()) ->
+    {ok, Node :: node()} | {error, Reason :: term()}.
+get_node(NodeName) ->
+    gen_server:call(?MODULE, {get_node, NodeName}).
 
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
@@ -54,15 +81,40 @@ init(_Args) ->
     process_flag(trap_exit, true),
     case gb_cli_server:start_link(?MODULE) of
 	{ok, SshDaemonRef} ->
+	    discover_nodes(),
 	    {ok, #{ssh_daemon_ref => SshDaemonRef}};
 	{error, Reason} ->
 	    {stop, Reason, #{}}
     end.
 
-handle_call(_, _, State) -> {reply, ok, State}.
-handle_cast(_, State) -> {noreply, State}.
-handle_info(_, State) -> {noreply, State}.
-code_change(_,State,_) -> {ok, State}.
+handle_call(get_topology_commit_ids, _, Map) ->
+    {ok, Hist} = gb_dyno_metadata:fetch_topo_history(),
+    HashList = [ Hash || {_,[{_, Hash}]} <- Hist],
+    Ids = [lists:sublist(integer_to_list(H,16),6) || H <- HashList],
+    Mappings = maps:from_list(lists:zip(Ids, HashList)),
+    {reply, {ok, Ids}, maps:put(hash_mappings, Mappings, Map)};
+handle_call({get_hash, Id}, _, Map = #{hash_mappings := Mappings}) ->
+    Hash = maps:get(Id, Mappings, undefined),
+    {reply, {ok, Hash}, Map};
+handle_call(get_node_names, _, Map = #{nodes := Nodes} ) ->
+    Names = [atom_to_list(N) || N <- Nodes],
+    Mappings = maps:from_list(lists:zip(Names, Nodes)),
+    {reply, {ok, Names}, maps:put(node_mappings, Mappings, Map)};
+handle_call({get_node, Name}, _, Map = #{node_mappings := Mappings}) ->
+    Node = maps:get(Name, Mappings, undefined),
+    {reply, {ok, Node}, Map};
+handle_call(_, _, Map) ->
+    {reply, ok, Map}.
+
+handle_cast({register_nodes, Nodes}, Map) ->
+    {noreply, maps:put(nodes, Nodes, Map)};
+handle_cast(_, M) ->
+    {noreply, M}.
+
+handle_info(_, M) -> {noreply, M}.
+
+code_change(_,M,_) -> {ok, M}.
+
 terminate(Reason, #{ssh_daemon_ref := SshDaemonRef}) ->
     ?debug("Terminating Pundun CLI, ~p", [Reason]),
     ssh:stop_daemon(SshDaemonRef).
@@ -85,14 +137,18 @@ routines() ->
 			expand => {?MODULE, table_info_expand, 1},
 			usage => table_info_usage(),
 			desc => "Print table information on given attributes."},
+      "cluster" => #{mfa => {?MODULE, cluster, 1},
+		     expand => {?MODULE, cluster_expand, 1},
+		     usage => cluster_usage(),
+		     desc => "Cluster management command. See usage."},
       "cm" => #{mfa => {?MODULE, cm, 1},
-			expand => {?MODULE, cm_expand, 1},
-			usage => cm_usage(),
-			desc => "Configuration management command. See usage."},
+		expand => {?MODULE, cm_expand, 1},
+		usage => cm_usage(),
+		desc => "Configuration management command. See usage."},
       "logger" => #{mfa => {?MODULE, logger, 1},
-			expand => {?MODULE, logger_expand, 1},
-			usage => logger_usage(),
-			desc => "Log management command. See usage."}}.
+		    expand => {?MODULE, logger_expand, 1},
+		    usage => logger_usage(),
+		    desc => "Log management command. See usage."}}.
 
 -spec ip() -> string() | any.
 ip() ->
@@ -145,6 +201,24 @@ table_info([TabName | Attrs]) ->
 	{error, Reason} ->
 	    {ok, Reason}
     end.
+
+-spec cluster([string()]) -> {ok, string()}.
+cluster(["show"]) ->
+    {ok, Topo} = gb_dyno_metadata:lookup_topo(),
+    {ok, print_topo(Topo)};
+cluster(["show", CommitID]) ->
+    {ok, Hash} = get_hash(CommitID),
+    {ok, Topo} = gb_dyno_metadata:lookup_topo(Hash),
+    {ok, print_topo(Topo)};
+cluster(["pull", NodeStr]) ->
+    {ok, Node} = get_node(NodeStr),
+    Result = gb_dyno_gossip:pull(Node),
+    {ok, print(Result)};
+cluster(["add_host", Host]) ->
+    Result = add_host(Host),
+    {ok, print(Result)};
+cluster(_) ->
+    {ok, "Unrecognised cluster option."}.
 
 -spec cm([string()]) -> {ok, string()}.
 cm(["list"]) ->
@@ -246,6 +320,19 @@ table_info_expand(["table_info", _Arg1 | Rest]) ->
     Attrs = get_table_info_attrs(),
     Prefix = lists:last(Rest),
     options_expand(Prefix, Attrs).
+
+-spec cluster_expand([string()]) -> {ok, string()}.
+cluster_expand(["cluster", Prefix])->
+    Options = ["add_host", "pull", "show"],
+    options_expand(Prefix, Options);
+cluster_expand(["cluster", "show", Prefix])->
+    {ok, Options} = get_topology_commit_ids(),
+    options_expand(Prefix, Options);
+cluster_expand(["cluster", "pull", Prefix])->
+    {ok, Options} = get_node_names(),
+    options_expand(Prefix, Options);
+cluster_expand(_) ->
+    {ok, []}.
 
 -spec cm_expand([string()]) -> {ok, string()}.
 cm_expand(["cm", Prefix])->
@@ -377,6 +464,16 @@ print_table_info_attrs() ->
     Attrs = get_table_info_attrs(),
     print_table_info_attrs(Attrs, []).
 
+-spec cluster_usage() -> string().
+cluster_usage() ->
+    "cluster OPTION\n\rOPTION:\n"++
+    "\r\tshow [COMMIT_ID]\n"++
+    "\r\tpull NODE\n"++
+    "\r\tadd_host HOSTNAME\n"++
+    "\rCOMMIT_ID:\n\r\tinteger\n"++
+    "\rNODE:\n\r\tremote node name\n"++
+    "\rHOSTNAME:\n\r\tstring\n".
+
 -spec cm_usage() -> string().
 cm_usage() ->
     "cm OPTION\n\rOPTION:\n"++
@@ -492,3 +589,54 @@ print_cm_versions([{V, B} | Rest], Acc) ->
     print_cm_versions(Rest, Acc ++ Line);
 print_cm_versions([], Acc) ->
     Acc.
+
+-spec print_topo(Topo :: [{Attr :: atom(), Value :: term()}] ) ->
+    string().
+print_topo(Topo) ->
+    CName = proplists:get_value(cluster, Topo),
+    Nodes = print_nodes(proplists:get_value(nodes, Topo)),
+    "Cluster: " ++ CName ++ "\n\r" ++ Nodes.
+
+-spec print_nodes(Nodes :: [{Node :: atom(), Properties :: [term()]}]) ->
+    string().
+print_nodes(Nodes) ->
+    "Node\t\t\tDC\tRack\tVersion\n\r" ++ print_nodes(Nodes, []).
+
+print_nodes([{Node, Proplist} | Rest], Acc) ->
+    DC = proplists:get_value(dc, Proplist),
+    Rack = proplists:get_value(rack, Proplist),
+    Version = proplists:get_value(version, Proplist),
+    Str = print(Node) ++ "\t" ++
+	  print(DC) ++ "\t" ++
+	  print(Rack) ++ "\t" ++
+	  print(Version) ++ "\n\r",
+    print_nodes(Rest, [Str|Acc]);
+print_nodes([], Acc) ->
+    lists:flatten(lists:reverse(Acc)).
+
+add_host(Host) ->
+    Port = os:getenv("ERL_EPMD_PORT", 4369),
+    case gen_tcp:connect(Host, Port, [], 200) of
+	{ok, Socket} ->
+	    gen_tcp:close(Socket),
+	    add_host_(Host);
+	{error, _} ->
+	    "can not connect to host epmd."
+    end.
+
+add_host_(Hostname) ->
+    Hosts = [atom_to_list(Atom)|| Atom <- net_adm:host_file()],
+    case lists:member(Hostname, Hosts) of
+	false ->
+	    Filename = filename:join(code:root_dir(),".hosts.erlang"),
+	    Str = "'"++Hostname++"'.\n",
+	    discover_nodes(),
+	    file:write_file(Filename, Str, [append]);
+	true ->
+	    "host already exists."
+    end.
+
+discover_nodes() ->
+    spawn(fun() ->
+	gen_server:cast(?MODULE, {register_nodes, net_adm:world()})
+    end).

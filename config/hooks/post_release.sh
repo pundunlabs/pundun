@@ -41,6 +41,14 @@ sed '/^RELEASE_ROOT_DIR=/a \
 export PRODDIR=$RELEASE_ROOT_DIR\
 ' $s
 
+#Initialize erlang hosts file with localhost.
+sed '/^export PRODDIR=/i \
+\
+if [ ! -f $RELEASE_ROOT_DIR/.hosts.erlang ]; then\
+    echo '"\\\'"'`hostname`'"\\\'"'. >> $RELEASE_ROOT_DIR/.hosts.erlang\
+fi\
+' $s
+
 done
 
 ## Create symlinks to configuration files
