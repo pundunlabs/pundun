@@ -43,11 +43,13 @@
 -export([show_tables/0,
 	 table_info/1,
 	 cluster/1,
+	 user/1,
 	 cm/1,
 	 logger/1]).
 
 -export([table_info_expand/1,
 	 cluster_expand/1,
+	 user_expand/1,
 	 cm_expand/1,
 	 logger_expand/1]).
 
@@ -141,6 +143,10 @@ routines() ->
 		     expand => {?MODULE, cluster_expand, 1},
 		     usage => cluster_usage(),
 		     desc => "Cluster management command. See usage."},
+      "user" => #{mfa => {?MODULE, user, 1},
+		  expand => {?MODULE, user_expand, 1},
+		  usage => user_usage(),
+		  desc => "User management command. See usage."},
       "cm" => #{mfa => {?MODULE, cm, 1},
 		expand => {?MODULE, cm_expand, 1},
 		usage => cm_usage(),
@@ -219,6 +225,23 @@ cluster(["add_host", Host]) ->
     {ok, print(Result)};
 cluster(_) ->
     {ok, "Unrecognised cluster option."}.
+
+-spec user([string()]) -> {ok, string()}.
+user(["add", User, Passwd]) ->
+    case pundun_user_db:add_user(User, Passwd) of
+	{ok, U} ->
+	    {ok, print(U)};
+	{error, R} ->
+	    {ok, print(R)}
+    end;
+user(["delete", User]) ->
+    Result = pundun_user_db:del_user(User),
+    {ok, print(Result)};
+user(["passwd", User, Passwd]) ->
+    Result = pundun_user_db:passwd(User, Passwd),
+    {ok, print(Result)};
+user(_) ->
+    {ok, "Unrecognised user option."}.
 
 -spec cm([string()]) -> {ok, string()}.
 cm(["list"]) ->
@@ -332,6 +355,19 @@ cluster_expand(["cluster", "pull", Prefix])->
     {ok, Options} = get_node_names(),
     options_expand(Prefix, Options);
 cluster_expand(_) ->
+    {ok, []}.
+
+-spec user_expand([string()]) -> {ok, string()}.
+user_expand(["user", Prefix])->
+    Options = ["add", "delete", "passwd"],
+    options_expand(Prefix, Options);
+user_expand(["user", "delete", Prefix])->
+    Options = pundun_user_db:list_users(),
+    options_expand(Prefix, Options);
+user_expand(["user", "passwd", Prefix])->
+    Options = pundun_user_db:list_users(),
+    options_expand(Prefix, Options);
+user_expand(_) ->
     {ok, []}.
 
 -spec cm_expand([string()]) -> {ok, string()}.
@@ -473,6 +509,15 @@ cluster_usage() ->
     "\rCOMMIT_ID:\n\r\tinteger\n"++
     "\rNODE:\n\r\tremote node name\n"++
     "\rHOSTNAME:\n\r\tstring\n".
+
+-spec user_usage() -> string().
+user_usage() ->
+    "user OPTION\n\rOPTION:\n"++
+    "\r\tadd USER PASSWD\n"++
+    "\r\tdelete USER\n"++
+    "\r\tpasswd USER\n"++
+    "\rUSER:\n\r\tstring\n"++
+    "\rPASSWD:\n\r\tstring\n".
 
 -spec cm_usage() -> string().
 cm_usage() ->

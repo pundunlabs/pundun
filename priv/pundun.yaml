@@ -15,7 +15,7 @@ params	 :
 				     depth: 1}}
 
     pbp_server_options : {ip: "127.0.0.1",
-			  port: 8889,
+			  port: 8886,
 			  backlog: 5,
 			  max: 20,
 			  acceptor_pool_size: 5,
@@ -24,6 +24,6 @@ params	 :
 				     keyfile: "key.pem",
 				     depth: 1}}
     pundun_cli_options : {ip: any,
-			  port: 8989,
+			  port: 8884,
 			  system_dir: "ssh",
 			  user_dir: "ssh"}
