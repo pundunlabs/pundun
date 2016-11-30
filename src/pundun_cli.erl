@@ -445,7 +445,7 @@ format_table_info([], []) ->
 format_table_info([{P, V}], Acc) ->
     S = lists:flatten(io_lib:format("\r~p: ~p", [P, V])),
     All = lists:reverse([S|Acc]),
-    {ok, lists:concat(All)};
+    {ok, re:replace(lists:concat(All), "\n", "&\r", [global, {return, list}])};
 format_table_info([{P, V} | Rest], Acc) ->
     S = lists:flatten(io_lib:format("\r~p: ~p~n", [P, V])),
     format_table_info(Rest, [S|Acc]).
