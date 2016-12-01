@@ -320,7 +320,7 @@ make_value(V) when is_list(V) ->
 	    {binary, list_to_binary(V)}
     end;
 make_value(undefined) ->
-    {null, 'NULL'};
+    {null, <<>>};
 make_value(A) when is_atom(A) ->
     {string, atom_to_list(A)};
 make_value(T) when is_tuple(T) ->
@@ -339,14 +339,12 @@ is_list_of_printables(L) ->
 
 -spec strip_fields(Fields :: [#'Field'{}]) ->
     [{string(), term()}].
-    strip_fields(Fields) ->
+strip_fields(Fields) ->
         strip_fields(Fields, []).
 
 -spec strip_fields(Fields :: [#'Field'{}],
 		   Acc :: [{string(), term()}]) ->
     [{string(), term()}].
-strip_fields([], Acc) ->
-    lists:reverse(Acc);
 strip_fields([#'Field'{name = N, value = {boolean, B}} | Rest], Acc) ->
     Bool =
 	case B of
@@ -358,7 +356,9 @@ strip_fields([#'Field'{name = N, value = {boolean, B}} | Rest], Acc) ->
 strip_fields([#'Field'{name = N, value = {null, _}} | Rest], Acc) ->
     strip_fields(Rest, [{N, undefined} | Acc]);
 strip_fields([#'Field'{name = N, value = {_, V}} | Rest], Acc) ->
-    strip_fields(Rest, [{N, V} | Acc]).
+    strip_fields(Rest, [{N, V} | Acc]);
+strip_fields([], Acc) ->
+    lists:reverse(Acc).
 
 -spec validate_attributes(Attr :: [string()], Acc :: [atom()]) ->
     [atom()].
