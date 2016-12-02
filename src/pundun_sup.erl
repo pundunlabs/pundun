@@ -58,27 +58,41 @@ init([]) ->
 -spec get_pbp_server_options() -> Options :: [{atom(), term()}].
 get_pbp_server_options() ->
     Params= gb_conf:get_param("pundun.yaml", pbp_server_options),
-    PropList = [{list_to_atom(P),V} || {P,V} <- Params],
-    PropList1 = fix_ssl_opts(PropList),
+    PropList = fix_params(Params),
     [{loop, {pundun_bp_session, init, [[{handler, pundun_bp_handler}]]}}
-      | PropList1].
+      | PropList].
 
 -spec get_ppb_server_options() -> Options :: [{atom(), term()}].
 get_ppb_server_options() ->
     Params= gb_conf:get_param("pundun.yaml", ppb_server_options),
-    PropList = [{list_to_atom(P),V} || {P,V} <- Params],
-    PropList1 = fix_ssl_opts(PropList),
+    PropList = fix_params(Params),
     [{loop, {pundun_bp_session, init, [[{handler, pundun_pb_handler}]]}}
-      | PropList1].
+      | PropList].
 
--spec fix_ssl_opts(List :: [{atom(), term()}]) ->
+-spec fix_params(Params :: [{string(), any()}]) ->
+    Fixed :: [{atom(), any()}].
+fix_params(Params) ->
+    fix_params(Params, []).
+
+-spec fix_params(Params :: [{string(), any()}],
+		 Acc :: [{atom(), any()}]) ->
+    Fixed :: [{atom(), any()}].
+fix_params([{"ip", "any"} | Rest], Acc) ->
+    fix_params(Rest, [{ip, any} | Acc]);
+fix_params([{"ssl_opts", SslOpts} | Rest], Acc) ->
+    fix_params(Rest, [{ssl_opts, fix_ssl_opts(SslOpts)} | Acc]);
+fix_params([{P, V} | Rest], Acc) ->
+    fix_params(Rest, [{list_to_atom(P), V} | Acc]);
+fix_params([], Acc) ->
+    lists:reverse(Acc).
+
+-spec fix_ssl_opts(Opts :: [{string(), term()}]) ->
     [{atom(), term()}].
-fix_ssl_opts(List) ->
-    SSLopts = proplists:get_value(ssl_opts, List),
-    SSLopts1 = fix_ssl_opts(SSLopts, []),
-    [{ssl_opts, SSLopts1} | proplists:delete(ssl_opts, List)].
+fix_ssl_opts(Opts) ->
+    fix_ssl_opts(Opts, []).
 
--spec fix_ssl_opts(List :: [{atom(), term()}], Acc :: [{atom(), term()}]) ->
+-spec fix_ssl_opts(Opts :: [{string(), any()}],
+		   Acc :: [{atom(), term()}]) ->
     [{atom(), term()}].
 fix_ssl_opts([{"certfile", CertFile} | Rest], Acc) ->
     CertFilePath = filename:join(code:priv_dir(pundun), CertFile),
@@ -89,4 +103,4 @@ fix_ssl_opts([{"keyfile", KeyFile} | Rest], Acc) ->
 fix_ssl_opts([{K, V} | Rest], Acc) ->
     fix_ssl_opts(Rest, [{list_to_atom(K), V} | Acc]);
 fix_ssl_opts([], Acc) ->
-    Acc.
+    lists:reverse(Acc).

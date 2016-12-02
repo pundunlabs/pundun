@@ -4,7 +4,7 @@ app_name : pundun
 notify_cb: []
 verify_cb: []
 params	 :
-    ppb_server_options : {ip: "127.0.0.1",
+    ppb_server_options : {ip: any,
 			  port: 8887,
 			  backlog: 5,
 			  max: 20,
@@ -14,7 +14,7 @@ params	 :
 				     keyfile: "key.pem",
 				     depth: 1}}
 
-    pbp_server_options : {ip: "127.0.0.1",
+    pbp_server_options : {ip: any,
 			  port: 8886,
 			  backlog: 5,
 			  max: 20,
