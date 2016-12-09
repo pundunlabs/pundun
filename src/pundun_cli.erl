@@ -109,7 +109,9 @@ handle_call(_, _, Map) ->
     {reply, ok, Map}.
 
 handle_cast({register_nodes, Nodes}, Map) ->
-    {noreply, maps:put(nodes, Nodes, Map)};
+    Names = [atom_to_list(N) || N <- Nodes],
+    Mappings = maps:from_list(lists:zip(Names, Nodes)),
+    {noreply, Map#{nodes => Nodes, node_mappings => Mappings}};
 handle_cast(_, M) ->
     {noreply, M}.
 
