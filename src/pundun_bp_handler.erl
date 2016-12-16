@@ -254,9 +254,9 @@ make_options([{dataModel, DT} | Rest], Acc) ->
 make_options([{wrapper, #'Wrapper'{numOfBuckets = NB,
 				   timeMargin = TM,
 				   sizeMargin = SM}} | Rest], Acc) ->
-    EW = #enterdb_wrapper{num_of_buckets = NB,
-			  time_margin = asn1_optional(TM),
-			  size_margin = asn1_optional(SM)},
+    EW = #{num_of_buckets => NB,
+	   time_margin => asn1_optional(TM),
+	   size_margin => asn1_optional(SM)},
     make_options(Rest, [{wrapper, EW} | Acc]);
 make_options([{memWrapper, #'Wrapper'{numOfBuckets = NB,
 				      timeMargin = TM,

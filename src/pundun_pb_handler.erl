@@ -415,13 +415,13 @@ translate_options(Option) ->
     Option.
 
 -spec translate_wrapper(#'Wrapper'{} | undefined) ->
-    #enterdb_wrapper{} | undefined.
+    #{} | undefined.
 translate_wrapper(#'Wrapper'{num_of_buckets = NB,
 			     time_margin = TM,
 			     size_margin = SM}) ->
-    #enterdb_wrapper{num_of_buckets = NB,
-		     time_margin = TM,
-		     size_margin = SM};
+    #{num_of_buckets => NB,
+      time_margin => TM,
+      size_margin => SM};
 translate_wrapper(undefined) ->
     undefined.
 
