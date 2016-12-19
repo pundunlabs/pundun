@@ -260,6 +260,9 @@ make_options([{wrapper, W} | Rest], Acc) ->
 make_options([{memWrapper, W} | Rest], Acc) ->
     EW = translate_wrapper(W),
     make_options(Rest, [{mem_wrapper, EW} | Acc]);
+make_options([{tda, T} | Rest], Acc) ->
+    Tda = translate_tda(T),
+    make_options(Rest, [{tda, Tda} | Acc]);
 make_options([{comparator, C} | Rest], Acc) ->
     make_options(Rest, [translate_options({comparator, C}) | Acc]);
 make_options([{time_series, T} | Rest], Acc) ->
@@ -401,6 +404,10 @@ translate_options({type, 'LEVELDBWRAPPED'}) ->
     {type, leveldb_wrapped};
 translate_options({type, 'ETSLEVELDBWRAPPED'}) ->
     {type, ets_leveldb_wrapped};
+translate_options({type, 'LEVELDBTDA'}) ->
+    {type, leveldb_tda};
+translate_options({type, 'ETSLEVELDBTDA'}) ->
+    {type, ets_leveldb_tda};
 translate_options({data_model, 'BINARY'}) ->
     {data_model, binary};
 translate_options({data_model, 'ARRAY'}) ->
@@ -411,6 +418,14 @@ translate_options({comparator, 'DESCENDING'}) ->
     {comparator, descending};
 translate_options({comparator, 'ASCENDING'}) ->
     {comparator, ascending};
+translate_options({hashing_method, 'VIRTUALNODES'}) ->
+    {hashing_method, virtual_nodes};
+translate_options({hashing_method, 'CONSISTENT'}) ->
+    {hashing_method, consistent};
+translate_options({hashing_method, 'UNIFORM'}) ->
+    {hashing_method, uniform};
+translate_options({hashing_method, 'RENDEZVOUS'}) ->
+    {hashing_method, rendezvous};
 translate_options(Option) ->
     Option.
 
@@ -424,6 +439,25 @@ translate_wrapper(#'Wrapper'{num_of_buckets = NB,
       size_margin => SM};
 translate_wrapper(undefined) ->
     undefined.
+
+-spec translate_tda(#'Tda'{} | undefined) ->
+    #{} | undefined.
+translate_tda(#'Tda'{num_of_buckets = NB,
+			 time_margin = TM,
+			 ts_field = TsF,
+			 precision = Precision}) ->
+    #{num_of_buckets => NB, time_margin => TM, ts_field => TsF,
+      precision => translate_time_unit(Precision)};
+translate_tda(undefined) ->
+    undefined.
+
+-spec translate_time_unit(Precision :: 'SECOND' | 'MILLISECOND' |
+				       'MICROSECOND' | 'NANOSECOND') ->
+    second | millisecond | microsecond | nanosecond.
+translate_time_unit('SECOND') -> second;
+translate_time_unit('MILLISECOND') -> millisecond;
+translate_time_unit('MICROSECOND') -> microsecond;
+translate_time_unit('NANOSECOND') -> nanosecond.
 
 -spec translate_update_operation(UpdateOperation :: [#'UpdateOperation'{}]) ->
     term().
