@@ -13,6 +13,8 @@ else
     (cd $LOCALREPO && git pull $REPOSRC)
 fi
 
+(cd $LOCALREPO && git checkout -b v1.0.0 v1.0.0)
+
 cd $REBAR_ROOT_DIR
 
 # Compile asn1 and output .erl and .hrl artifacts to src folder
