@@ -1,0 +1,7 @@
+%% -*- erlang -*-
+Tag = string:strip(os:cmd("git branch | grep \\* | cut -d ' ' -f2"), both, 10),
+{application, APPNAME, Vars} = lists:keyfind(application, 1, CONFIG),
+{vsn, _} = lists:keyfind(vsn, 1, Vars),
+Vars1 = lists:keystore(vsn, 1, Vars, {vsn, Tag}),
+lists:keystore(application, 1, CONFIG, {application, APPNAME, Vars1}).
+

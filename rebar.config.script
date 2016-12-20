@@ -1,0 +1,10 @@
+%% -*- erlang -*-
+Tag = string:strip(os:cmd("git branch | grep \\* | cut -d ' ' -f2"), both, 10),
+{relx, Relx} = lists:keyfind(relx, 1, CONFIG),
+{_, DefRelName, _} = lists:keyfind(default_release, 1, Relx),
+{_, {RelName, _}, Apps} = lists:keyfind(release, 1, Relx),
+DefaultRelease = {default_release, DefRelName, Tag},
+Release = {release, {RelName, Tag}, Apps},
+Relx1 = lists:keystore(release, 1, Relx, Release),
+Relx2 = lists:keystore(default_release, 1, Relx1, DefaultRelease),
+lists:keystore(relx, 1, CONFIG, {relx, Relx2}).

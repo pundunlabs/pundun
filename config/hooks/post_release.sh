@@ -62,7 +62,7 @@ create_sym_links()
 	if [ -L $link ]; then
 	    rm $c
 	fi
-	ln -s $c $link
+	ln -sf $c $link
     done
 }
 create_sym_links
