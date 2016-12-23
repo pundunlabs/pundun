@@ -13,6 +13,9 @@ START_SCRIPTS=`find $REBAR_BUILD_DIR/rel -type f -name pundun`
 for s in $START_SCRIPTS; do
 
 ## SET LD_LIBRARY_PATH
+    sed 's/readlink/readlink -f/g' $s
+
+## SET LD_LIBRARY_PATH
     sed '/export LD_LIBRARY_PATH/i \
 LD_DIRS=`find $RELEASE_ROOT_DIR/slib -type d` \
 LIBRARY_PATHS=\
@@ -44,8 +47,8 @@ export PRODDIR=$RELEASE_ROOT_DIR\
 #Initialize erlang hosts file with localhost.
 sed '/^export PRODDIR=/i \
 \
-if [ ! -f $RELEASE_ROOT_DIR/.hosts.erlang ]; then\
-    echo '"\\\'"'`hostname`'"\\\'"'. >> $RELEASE_ROOT_DIR/.hosts.erlang\
+if [ ! -f $ROOTDIR/.hosts.erlang ]; then\
+    echo '"\\\'"'`hostname`'"\\\'"'. >> $ROOTDIR/.hosts.erlang\
 fi\
 ' $s
 
@@ -53,16 +56,20 @@ done
 
 ## Create symlinks to configuration files
 ## This makes easier access to configuration files.
-ETC=$REBAR_BUILD_DIR/rel/pundun/etc
-CFGS=`find $REBAR_BUILD_DIR/rel/pundun/lib/*/priv/ -name *.yaml -type f`
 create_sym_links()
 {
+    CFGS=`find $REBAR_BUILD_DIR/rel/pundun/lib/*/priv/ -name *.yaml -type f`
+    if [ $PKG_BUILD = 1 ] ; then
+	INSTALL_PATH="../usr/lib/pundun/"
+    else
+	INSTALL_PATH=""
+    fi
     for c in $CFGS; do
-	local link=$ETC/`basename $c`
+	local link=$REBAR_BUILD_DIR/rel/pundun/etc/`basename $c`
 	if [ -L $link ]; then
 	    rm $c
 	fi
-	ln -sf $c $link
+	ln -sf ../${INSTALL_PATH}${c#${REBAR_BUILD_DIR}/rel/pundun/} $link
     done
 }
 create_sym_links

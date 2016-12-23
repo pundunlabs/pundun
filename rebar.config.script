@@ -1,5 +1,5 @@
 %% -*- erlang -*-
-Tag = string:strip(os:cmd("git branch | grep \\* | cut -d ' ' -f2"), both, 10),
+Tag = string:strip(os:cmd("git describe --tags | tr -d v"), both, 10),
 {relx, Relx} = lists:keyfind(relx, 1, CONFIG),
 {_, DefRelName, _} = lists:keyfind(default_release, 1, Relx),
 {_, {RelName, _}, Apps} = lists:keyfind(release, 1, Relx),
