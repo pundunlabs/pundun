@@ -59,7 +59,7 @@ done
 create_sym_links()
 {
     CFGS=`find $REBAR_BUILD_DIR/rel/pundun/lib/*/priv/ -name *.yaml -type f`
-    if [ $PKG_BUILD = 1 ] ; then
+    if [ "$PKG_BUILD" = "1" ] ; then
 	INSTALL_PATH="../usr/lib/pundun/"
     else
 	INSTALL_PATH=""
