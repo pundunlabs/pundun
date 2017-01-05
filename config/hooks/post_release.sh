@@ -45,7 +45,7 @@ export PRODDIR=$RELEASE_ROOT_DIR\
 ' $s
 
 #Initialize erlang hosts file with localhost.
-sed '/^export PRODDIR=/i \
+sed '/^export ROOTDIR=/i \
 \
 if [ ! -f $ROOTDIR/.hosts.erlang ]; then\
     echo '"\\\'"'`hostname`'"\\\'"'. >> $ROOTDIR/.hosts.erlang\
