@@ -398,22 +398,22 @@ validate_attributes([_H | T], Acc) ->
     Option :: table_option().
 translate_options({type, 'LEVELDB'}) ->
     {type, leveldb};
-translate_options({type, 'ETSLEVELDB'}) ->
+translate_options({type, 'MEMLEVELDB'}) ->
     {type, ets_leveldb};
 translate_options({type, 'LEVELDBWRAPPED'}) ->
     {type, leveldb_wrapped};
-translate_options({type, 'ETSLEVELDBWRAPPED'}) ->
+translate_options({type, 'MEMLEVELDBWRAPPED'}) ->
     {type, ets_leveldb_wrapped};
 translate_options({type, 'LEVELDBTDA'}) ->
     {type, leveldb_tda};
-translate_options({type, 'ETSLEVELDBTDA'}) ->
+translate_options({type, 'MEMLEVELDBTDA'}) ->
     {type, ets_leveldb_tda};
-translate_options({data_model, 'BINARY'}) ->
-    {data_model, binary};
+translate_options({data_model, 'KV'}) ->
+    {data_model, kv};
 translate_options({data_model, 'ARRAY'}) ->
     {data_model, array};
-translate_options({data_model, 'HASH'}) ->
-    {data_model, hash};
+translate_options({data_model, 'MAP'}) ->
+    {data_model, map};
 translate_options({comparator, 'DESCENDING'}) ->
     {comparator, descending};
 translate_options({comparator, 'ASCENDING'}) ->
@@ -443,9 +443,9 @@ translate_wrapper(undefined) ->
 -spec translate_tda(#'Tda'{} | undefined) ->
     #{} | undefined.
 translate_tda(#'Tda'{num_of_buckets = NB,
-			 time_margin = TM,
-			 ts_field = TsF,
-			 precision = Precision}) ->
+		     time_margin = TM,
+		     ts_field = TsF,
+		     precision = Precision}) ->
     #{num_of_buckets => NB, time_margin => TM, ts_field => TsF,
       precision => translate_time_unit(Precision)};
 translate_tda(undefined) ->
