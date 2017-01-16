@@ -1,5 +1,7 @@
 # pundun
 
+[![Join the chat at https://gitter.im/pundunlabs/pundun](https://badges.gitter.im/pundunlabs/pundun.svg)](https://gitter.im/pundunlabs/pundun?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 Data Management Framework with a Distributed Database.
 
 ### Building Pundun Framework
