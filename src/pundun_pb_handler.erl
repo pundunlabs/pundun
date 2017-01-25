@@ -289,7 +289,7 @@ make_fields(Else)->
     Else.
 
 -spec make_seq_of_fields(Key :: [{string(), term()}]) ->
-    #'Fields'{}.
+    [#'Fields'{}].
 make_seq_of_fields(Key) when is_list(Key)->
     [#'Field'{name = Name, value = make_value(Value)}
 	|| {Name, Value} <- Key];
@@ -320,7 +320,8 @@ make_value(V) when is_list(V) ->
 	{true, L} ->
 	    {string, L};
 	false ->
-	    {binary, list_to_binary(V)}
+	    L = io_lib:format("~p",[V]),
+	    {string, lists:flatten(L)}
     end;
 make_value(undefined) ->
     {null, <<>>};
