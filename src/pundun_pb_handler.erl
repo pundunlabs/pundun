@@ -498,14 +498,14 @@ translate_value(#'Value'{value = {_, Term}}) ->
 -spec translate_update_instruction(UpInst :: #'UpdateInstruction'{}) ->
     term().
 translate_update_instruction(#'UpdateInstruction'{instruction = 'INCREMENT',
-						  treshold = <<>>,
+						  threshold = <<>>,
 						  set_value = <<>>}) ->
     increment;
 translate_update_instruction(#'UpdateInstruction'{instruction = 'INCREMENT',
-						  treshold = Treshold,
+						  threshold = Threshold,
 						  set_value = SetValue}) ->
     {increment,
-     binary:decode_unsigned(Treshold, big),
+     binary:decode_unsigned(Threshold, big),
      binary:decode_unsigned(SetValue, big)};
 translate_update_instruction(#'UpdateInstruction'{instruction = 'OVERWRITE'}) ->
     overwrite.

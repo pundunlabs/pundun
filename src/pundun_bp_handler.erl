@@ -421,12 +421,12 @@ translate_update_operations([], Acc) ->
 -spec translate_update_instruction(UpInst :: #'UpdateInstruction'{}) ->
     term().
 translate_update_instruction(#'UpdateInstruction'{instruction = increment,
-						  treshold = undefined,
+						  threshold = undefined,
 						  setValue = undefined}) ->
     increment;
 translate_update_instruction(#'UpdateInstruction'{instruction = increment,
-						  treshold = Treshold,
+						  threshold = Threshold,
 						  setValue = SetValue}) ->
-    {increment, Treshold, SetValue};
+    {increment, Threshold, SetValue};
 translate_update_instruction(#'UpdateInstruction'{instruction = overwrite}) ->
     overwrite.

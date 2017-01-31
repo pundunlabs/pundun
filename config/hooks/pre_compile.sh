@@ -1,5 +1,5 @@
 #!/bin/sh
-APOLLO_TAG="v1.0.0"
+APOLLO_TAG="v1.0.1"
 REPOSRC=https://github.com/erdemaksu/apollo.git
 LOCALREPO=apollo
 
