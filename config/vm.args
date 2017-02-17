@@ -25,3 +25,6 @@
 
 ## Sets the maximum number of simultaneously existing processes.
 +P 1048576
+
+## Sets the maximum number of ets tables.
+-env ERL_MAX_ETS_TABLES 8192
