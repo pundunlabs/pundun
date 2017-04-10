@@ -12,8 +12,9 @@ fi
 START_SCRIPTS=`find $REBAR_BUILD_DIR/rel -type f -name pundun`
 for s in $START_SCRIPTS; do
 
-## SET LD_LIBRARY_PATH
+if [ $OS_NAME != "Darwin" ] ; then
     sed 's/readlink/readlink -f/g' $s
+fi
 
 ## SET LD_LIBRARY_PATH
     sed '/export LD_LIBRARY_PATH/i \
@@ -66,9 +67,6 @@ create_sym_links()
     fi
     for c in $CFGS; do
 	local link=$REBAR_BUILD_DIR/rel/pundun/etc/`basename $c`
-	if [ -L $link ]; then
-	    rm $c
-	fi
 	ln -sf ../${INSTALL_PATH}${c#${REBAR_BUILD_DIR}/rel/pundun/} $link
     done
 }
