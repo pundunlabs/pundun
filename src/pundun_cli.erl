@@ -671,19 +671,15 @@ add_host(Host) ->
 	    "can not connect to host epmd."
     end.
 
-add_host_(Hostname) ->
-    Hosts = [atom_to_list(Atom)|| Atom <- net_adm:host_file()],
-    case lists:member(Hostname, Hosts) of
-	false ->
-	    Filename = filename:join(code:root_dir(),".hosts.erlang"),
-	    Str = "'"++Hostname++"'.\n",
-	    discover_nodes(),
-	    file:write_file(Filename, Str, [append]);
-	true ->
-	    "host already exists."
-    end.
+add_host_(Host) ->
+    discover_nodes([list_to_atom(Host)]),
+    ok.
 
+discover_nodes(Hosts) ->
+    spawn(fun() ->
+	gen_server:cast(?MODULE, {register_nodes, net_adm:world_list(Hosts)})
+    end).
 discover_nodes() ->
     spawn(fun() ->
-	gen_server:cast(?MODULE, {register_nodes, net_adm:world()})
+	gen_server:cast(?MODULE, {register_nodes, nodes()})
     end).
