@@ -1,5 +1,6 @@
 # ignore any files and folders generated under _build dir
 _build
+_checkouts
 *.beam
 
 #docs
