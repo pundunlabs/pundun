@@ -140,6 +140,19 @@ apply_procedure({next, #'Next'{it = It}}) ->
 apply_procedure({prev, #'Prev'{it = It}}) ->
     Result = enterdb:prev(It),
     make_response(key_columns_pair, Result);
+apply_procedure({add_index, #'AddIndex'{table_name = TabName,
+					columns = Columns}}) ->
+    Result = enterdb:add_index(TabName, Columns),
+    make_response(ok, Result);
+apply_procedure({add_index, #'RemoveIndex'{table_name = TabName,
+					   columns = Columns}}) ->
+    Result = enterdb:remove_index(TabName, Columns),
+    make_response(ok, Result);
+apply_procedure({index_read, #'IndexRead'{table_name = TabName,
+					    column_name = ColumnName,
+					    term = Term}}) ->
+    Result = enterdb:index_read(TabName, ColumnName, Term),
+    make_response(key_columns_list, Result);
 apply_procedure(_) ->
     {error, #'Error'{cause = {protocol, "unknown procedure"}}}.
 

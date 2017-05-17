@@ -1,5 +1,5 @@
 #!/bin/sh
-APOLLO_TAG="v1.0.1"
+APOLLO_TAG="v1.0.2"
 REPOSRC=https://github.com/erdemaksu/apollo.git
 LOCALREPO=apollo
 
@@ -13,7 +13,7 @@ else
     (cd $LOCALREPO && git pull $REPOSRC)
 fi
 
-(cd $LOCALREPO && git checkout $APOLLO_TAG 2>/dev/null || git checkout -b ?APOLLO_TAG)
+(cd $LOCALREPO && git checkout $APOLLO_TAG 2>/dev/null || git checkout -b $APOLLO_TAG)
 
 cd $REBAR_ROOT_DIR
 
