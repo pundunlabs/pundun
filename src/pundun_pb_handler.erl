@@ -245,7 +245,7 @@ wrap_response(Term) ->
 			    {memWrapper, #'Wrapper'{}} |
 			    {comparator, comparator()} |
 			    {timeSeries, boolean()} |
-			    {shards, integer()} |
+			    {num_of_shards, integer()} |
 			    {distributed, boolean()} |
 			    {replication_factor, integer()} |
 			    {hash_exclude, [string()]}.
@@ -276,12 +276,15 @@ make_options([{memWrapper, W} | Rest], Acc) ->
 make_options([{tda, T} | Rest], Acc) ->
     Tda = translate_tda(T),
     make_options(Rest, [{tda, Tda} | Acc]);
+make_options([{ttl, T} | Rest], Acc) ->
+    Ttl = translate_ttl(T),
+    make_options(Rest, [{ttl, Ttl} | Acc]);
 make_options([{comparator, C} | Rest], Acc) ->
     make_options(Rest, [translate_options({comparator, C}) | Acc]);
 make_options([{time_series, T} | Rest], Acc) ->
     make_options(Rest, [{time_series, T} | Acc]);
-make_options([{shards, S} | Rest], Acc) ->
-    make_options(Rest, [{shards, S} | Acc]);
+make_options([{num_of_shards, S} | Rest], Acc) ->
+    make_options(Rest, [{num_of_shards, S} | Acc]);
 make_options([{distributed, D} | Rest], Acc) ->
     make_options(Rest, [{distributed, D} | Acc]);
 make_options([{replication_factor, R} | Rest], Acc) ->
@@ -401,8 +404,8 @@ validate_attributes(["type" | T], Acc) ->
     validate_attributes(T, [type | Acc]);
 validate_attributes(["data_model" | T], Acc) ->
     validate_attributes(T, [data_model | Acc]);
-validate_attributes(["shards" | T], Acc) ->
-    validate_attributes(T, [shards | Acc]);
+validate_attributes(["num_of_shards" | T], Acc) ->
+    validate_attributes(T, [num_of_shards | Acc]);
 validate_attributes(["nodes" | T], Acc) ->
     validate_attributes(T, [nodes | Acc]);
 validate_attributes([_H | T], Acc) ->
@@ -410,6 +413,8 @@ validate_attributes([_H | T], Acc) ->
 
 -spec translate_options(PBP_Option :: pbp_table_option()) ->
     Option :: table_option().
+translate_options({type, 'ROCKSDB'}) ->
+    {type, rocksdb};
 translate_options({type, 'LEVELDB'}) ->
     {type, leveldb};
 translate_options({type, 'MEMLEVELDB'}) ->
@@ -464,6 +469,13 @@ translate_tda(#'Tda'{num_of_buckets = NB,
       precision => translate_time_unit(Precision)};
 translate_tda(undefined) ->
     undefined.
+
+-spec translate_ttl(TTL :: term()) ->
+    T :: integer().
+translate_ttl(TTL) when is_integer(TTL) ->
+    TTL;
+translate_ttl(_) ->
+    0.
 
 -spec translate_time_unit(Precision :: 'SECOND' | 'MILLISECOND' |
 				       'MICROSECOND' | 'NANOSECOND') ->
