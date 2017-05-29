@@ -38,7 +38,8 @@
 	 ip/0,
 	 port/0,
 	 system_dir/0,
-	 user_dir/0]).
+	 user_dir/0,
+	 get_opts/0]).
 
 -export([show_tables/0,
 	 table_info/1,
@@ -179,6 +180,10 @@ user_dir() ->
     Params= gb_conf:get_param("pundun.yaml", pundun_cli_options),
     Dir = proplists:get_value("user_dir", Params, "ssh"),
     filename:join(code:priv_dir(pundun), Dir).
+
+-spec get_opts() -> [term()].
+get_opts() ->
+    [{pwdfun, fun pundun_user_db:verify_user/2}].
 
 
 %%%===================================================================

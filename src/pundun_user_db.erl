@@ -26,11 +26,13 @@
 	 add_user/2,
 	 del_user/1,
 	 passwd/2,
-	 list_users/0]).
+	 list_users/0,
+	 verify_user/2]).
 
 -export([transaction/1]).
 
 -include("pundun.hrl").
+-include_lib("gb_log/include/gb_log.hrl").
 
 %%%===================================================================
 %%% API
@@ -169,3 +171,18 @@ write_admin_user() ->
     Fun = fun() -> mnesia:write(Record) end,
     {atomic, ok} = transaction(Fun),
     ok.
+
+-spec verify_user(User :: string(), Password :: string()) -> boolean().
+verify_user(User, Password) ->
+    case mnesia:dirty_read(pundun_user, User) of
+	[#pundun_user{salt = Salt, iteration_count = IC,
+		      salted_password = SaltedPassword}] ->
+	    case scramerl_lib:hi(Password, Salt, IC) of
+		SaltedPassword ->
+		    true;
+		_ ->
+		    false
+	    end;
+	_ ->
+	    false
+    end.
