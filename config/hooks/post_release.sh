@@ -39,12 +39,6 @@ if [ -z "$NAME" ]; then\
 fi\
 ' $s
 
-## export PRODDIR
-## gb_conf is using and dependent on PRODDIR env variable.
-sed '/^RELEASE_ROOT_DIR=/a \
-export PRODDIR=$RELEASE_ROOT_DIR\
-' $s
-
 done
 
 ## Create symlinks to configuration files
