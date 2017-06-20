@@ -16,18 +16,6 @@ if [ $OS_NAME != "Darwin" ] ; then
     sed 's/readlink/readlink -f/g' $s
 fi
 
-## SET LD_LIBRARY_PATH
-    sed '/export LD_LIBRARY_PATH/i \
-LD_DIRS=`find $RELEASE_ROOT_DIR/slib -type d` \
-LIBRARY_PATHS=\
-for i in $LD_DIRS; do\
-    LIBRARY_PATHS="$i:$LIBRARY_PATHS"\
-done\
-' $s
-    sed 's/$LD_LIBRARY_PATH*/$LIBRARY_PATHS:$LD_LIBRARY_PATH/' $s
-    sed '/export LD_LIBRARY_PATH/a \
-export DYLD_LIBRARY_PATH=$LD_LIBRARY_PATH\
-' $s
 
 ##GENERATE Node Name from path
 sed '/^NAME=/a \
