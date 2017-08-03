@@ -98,7 +98,7 @@ add_user_fun(User, PassWd) ->
     case mnesia:read(pundun_user, User_) of
 	[] ->
 	    PassWd_ = stringprep:prepare(PassWd),
-	    Salt = [crypto:rand_uniform(48,125) || _ <- lists:seq(0,15)],
+	    Salt = get_salt(16),
 	    IterCount = 4096,
 	    SaltedPassword = scramerl_lib:hi(PassWd_, Salt, IterCount),
 	    Record = #pundun_user{username = User_,
@@ -141,7 +141,7 @@ passwd_fun(User, PassWd) ->
     case mnesia:read(pundun_user, User_) of
 	[R] ->
 	    PassWd_ = stringprep:prepare(PassWd),
-	    Salt = [crypto:rand_uniform(48,125) || _ <- lists:seq(0,15)],
+	    Salt = get_salt(16),
 	    IterCount = R#pundun_user.iteration_count,
 	    SaltedPassword = scramerl_lib:hi(PassWd_, Salt, IterCount),
 	    Record = R#pundun_user{salt = Salt,
@@ -160,7 +160,7 @@ list_users()->
 
 -spec write_admin_user() -> ok.
 write_admin_user() ->
-    Salt = [crypto:rand_uniform(48,125) || _ <- lists:seq(0,15)],
+    Salt = get_salt(16),
     Normalized = stringprep:prepare("admin"),
     IterCount = 4096,
     SaltedPassword = scramerl_lib:hi(Normalized, Salt, IterCount),
@@ -186,3 +186,15 @@ verify_user(User, Password) ->
 	_ ->
 	    false
     end.
+
+-spec get_salt(N :: pos_integer()) ->
+    [pos_integer()].
+get_salt(N) when is_integer(N), N > 0->
+    get_salt(N, []).
+
+-spec get_salt(N :: pos_integer(), Acc :: [pos_integer()]) ->
+    [pos_integer()].
+get_salt(0, Acc) ->
+    Acc;
+get_salt(N, Acc) ->
+    get_salt(N-1, [47 + rand:uniform(78) | Acc]).
