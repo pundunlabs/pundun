@@ -38,7 +38,7 @@
 handle_incomming_data(Bin, From) ->
     case apollo_pb:decode_msg(Bin, 'ApolloPdu') of
 	#'ApolloPdu'{} = PDU ->
-	    ?debug("PDU: ~p", [PDU]),    
+	    ?debug("PDU: ~p", [PDU]),
 	    handle_pdu(PDU, From);
 	{error, Reason} ->
 	    ?debug("Error decoding received data: ~p", [Reason])
@@ -141,10 +141,11 @@ apply_procedure({prev, #'Prev'{it = It}}) ->
     Result = enterdb:prev(It),
     make_response(key_columns_pair, Result);
 apply_procedure({add_index, #'AddIndex'{table_name = TabName,
-					columns = Columns}}) ->
-    Result = enterdb:add_index(TabName, Columns),
+					config = Config}}) ->
+    IndexConfig = make_index_config(Config),
+    Result = enterdb:add_index(TabName, IndexConfig),
     make_response(ok, Result);
-apply_procedure({add_index, #'RemoveIndex'{table_name = TabName,
+apply_procedure({remove_index, #'RemoveIndex'{table_name = TabName,
 					   columns = Columns}}) ->
     Result = enterdb:remove_index(TabName, Columns),
     make_response(ok, Result);
@@ -534,3 +535,83 @@ translate_update_instruction(#'UpdateInstruction'{instruction = 'INCREMENT',
      binary:decode_unsigned(SetValue, big)};
 translate_update_instruction(#'UpdateInstruction'{instruction = 'OVERWRITE'}) ->
     overwrite.
+
+make_index_config(List) ->
+    make_index_config(List, []).
+
+make_index_config([#'IndexConfig'{column = C, options = Opts} | Rest], Acc) ->
+    make_index_config(Rest, [{C, make_index_options(Opts)} | Acc]);
+make_index_config([], Acc) ->
+    lists:reverse(Acc).
+
+make_index_options(#'IndexOptions'{char_filter = CF,
+				   tokenizer = Tokenizer,
+				   token_filter = TokenFilter}) ->
+    M1 = translate_char_filter(CF, #{}),
+    M2 = translate_tokeizer(Tokenizer, M1),
+    make_token_filter(TokenFilter, M2).
+
+translate_char_filter('NFC', M) ->
+    M#{char_filter => nfc};
+translate_char_filter('NFD', M) ->
+    M#{char_filter => nfd};
+translate_char_filter('NFKC', M) ->
+    M#{char_filter => nfkc};
+translate_char_filter('NFKD', M) ->
+    M#{char_filter => nfkd};
+translate_char_filter(_, M) ->
+    M.
+
+translate_tokeizer('UNICODE_WORD_BOUNDARIES', M) ->
+    M#{tokenizer => unicode_word_boundaries};
+translate_tokeizer(_, M) ->
+    M.
+
+make_token_filter(#'TokenFilter'{transform = Transform,
+				 add = Add,
+				 delete = Delete,
+				 stats = Stats}, M) ->
+    M1 = translate_transform(Transform, #{}),
+    M2 = make_add_words(Add, M1),
+    M3 = make_delete_words(Delete, M2),
+    M4 = translate_stats(Stats, M3),
+    M#{token_filter => M4};
+make_token_filter(_, M) ->
+    M.
+
+translate_transform('LOWERCASE', M) ->
+    M#{transform => lowercase};
+translate_transform('UPPERCASE', M) ->
+    M#{transform => uppercase};
+translate_transform('CASEFOLD', M) ->
+    M#{transform => casefold};
+translate_transform(_, M) ->
+    M.
+
+make_add_words([], M)->
+    M;
+make_add_words(Add, M)->
+    M#{add => Add}.
+
+make_delete_words([], M) ->
+    M;
+make_delete_words(Delete, M) ->
+    M#{delete => [handle_stopword(W) || W <- Delete]}.
+
+handle_stopword("$english_stopwords") ->
+    english_stopwords;
+handle_stopword("$lucene_stopwords") ->
+    lucene_stopwords;
+handle_stopword("$wikipages_stopwords") ->
+    wikipages_stopwords;
+handle_stopword(W) ->
+    W.
+
+translate_stats('UNIQUE', M) ->
+    M#{stats => unique};
+translate_stats('FREQUENCY', M) ->
+    M#{stats => freqs};
+translate_stats('POSITION', M) ->
+    M#{stats => position};
+translate_stats('NOSTATS', M) ->
+    M.

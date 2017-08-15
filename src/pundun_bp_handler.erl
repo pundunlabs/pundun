@@ -38,7 +38,7 @@
 handle_incomming_data(Bin, From) ->
     case 'APOLLO-PDU-Descriptions':decode('APOLLO-PDU', Bin) of
 	{ok, PDU} ->
-	    ?debug("PDU: ~p", [PDU]),    
+	    ?debug("PDU: ~p", [PDU]),
 	    handle_pdu(PDU, From);
 	{error, Reason} ->
 	    ?debug("Error decoding received data: ~p", [Reason])

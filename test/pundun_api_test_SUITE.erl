@@ -1,9 +1,9 @@
 %%%-------------------------------------------------------------------
 %%% File    : example_SUITE.erl
-%%% Author  : 
-%%% Description : 
+%%% Author  :
+%%% Description :
 %%%
-%%% Created : 
+%%% Created :
 %%%-------------------------------------------------------------------
 -module(pundun_api_test_SUITE).
 
@@ -166,7 +166,7 @@ groups() ->
 %% Description: Returns the list of groups and test cases that
 %%              are to be executed.
 %%--------------------------------------------------------------------
-all() -> 
+all() ->
     [create_leveldb_table,
      write_to_leveldb_table,
      read_from_leveldb_table,
@@ -193,10 +193,10 @@ all() ->
 %% Note: This function is only meant to be used to return a list of
 %% values, not perform any other operations.
 %%--------------------------------------------------------------------
-create_leveldb_table() -> 
+create_leveldb_table() ->
     [].
 
-delete_leveldb_table() -> 
+delete_leveldb_table() ->
     [].
 
 %%--------------------------------------------------------------------
@@ -221,7 +221,7 @@ delete_leveldb_table() ->
 %% Create a hash ring with SHA algorithm and uniform strategy.
 %% @end
 %%--------------------------------------------------------------------
-create_leveldb_table(Config) -> 
+create_leveldb_table(Config) ->
     Node = proplists:get_value(node, Config),
     ct:log(io_lib:format("Create table at: ~p", [Node])),
     Name = "ct_test_101",
@@ -256,7 +256,7 @@ read_from_leveldb_table(Config) ->
     Key = [{id, 1}, {ts, {0,0,1}}],
     Columns = [{field1, 1}],
     Args = [Name, Key],
-    
+
     Res = rpc:call(Node, enterdb, read, Args),
     ct:log(io_lib:format("RPC Result: ~p", [Res])),
     ?assert({ok, Columns} == Res).
@@ -268,7 +268,7 @@ delete_from_leveldb_table(Config) ->
     Name = "ct_test_101",
     Key = [{id, 1}, {ts, {0,0,1}}],
     Args = [Name, Key],
-    
+
     DelRes = rpc:call(Node, enterdb, delete, Args),
     ct:log(io_lib:format("RPC Result for delete: ~p", [DelRes])),
     ?assert(ok == DelRes),
@@ -287,11 +287,11 @@ read_range_from_leveldb_table(Config) ->
 				|| X <- Items ],
 
     ?assert([ok] == lists:usort(WriteResults)),
-    
+
     Range = {[{ts, {0,0,999}}, {id, 999}] , [{id, 5}, {ts, {0,0,5}}]},
     Chunk = 1000,
     ReadArgs = [Name, Range, Chunk],
-    
+
     ReadRes = rpc:call(Node, enterdb, read_range, ReadArgs),
     ?assertMatch({ok, _, complete}, ReadRes),
     ?assert(995 == length(element(2, ReadRes))).
@@ -305,7 +305,7 @@ read_range_n_from_leveldb_table(Config) ->
     Start = [{ts, {0,0,0}}, {id, 1100}],
     N = 1100,
     ReadArgs = [Name, Start, N],
-    
+
     ReadRes = rpc:call(Node, enterdb, read_range_n, ReadArgs),
     ?assertMatch({ok, _}, ReadRes),
     ?assert(1000 == length(element(2, ReadRes))).
@@ -324,9 +324,9 @@ iterate_over_leveldb_table(Config) ->
     ?assertMatch({ok, {_,_}} , rpc:call(Node, enterdb, prev, [Ref])),
     ?assertMatch({error, invalid} , rpc:call(Node, enterdb, prev, [Ref])).
 
-    
 
-delete_leveldb_table(Config) -> 
+
+delete_leveldb_table(Config) ->
     Node = proplists:get_value(node, Config),
     ct:log(io_lib:format("Delete table at: ~p", [Node])),
     Name = "ct_test_101",
