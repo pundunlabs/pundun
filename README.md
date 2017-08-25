@@ -26,11 +26,11 @@ $ rebar3 as target tar
 
 ### Configuring Pundun Binary Protocol Server
 Edit 'PROD/etc/pundun.yaml';
-    
+
     where PROD is '\_build/RELEASE/rel/pundun' and
 
 	  RELEASE is default | prod | target
-    
+
     if above commands are applied.
 
 Modify 'pbp_server_options' parameter.

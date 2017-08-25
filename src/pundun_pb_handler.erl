@@ -146,14 +146,15 @@ apply_procedure({add_index, #'AddIndex'{table_name = TabName,
     Result = enterdb:add_index(TabName, IndexConfig),
     make_response(ok, Result);
 apply_procedure({remove_index, #'RemoveIndex'{table_name = TabName,
-					   columns = Columns}}) ->
+					      columns = Columns}}) ->
     Result = enterdb:remove_index(TabName, Columns),
     make_response(ok, Result);
 apply_procedure({index_read, #'IndexRead'{table_name = TabName,
-					    column_name = ColumnName,
-					    term = Term}}) ->
-    Result = enterdb:index_read(TabName, ColumnName, Term),
-    make_response(key_columns_list, Result);
+					  column_name = ColumnName,
+					  term = Term,
+					  limit = Limit}}) ->
+    Result = enterdb:index_read(TabName, ColumnName, Term, Limit),
+    make_response(keys, Result);
 apply_procedure(_) ->
     {error, #'Error'{cause = {protocol, "unknown procedure"}}}.
 
@@ -173,10 +174,11 @@ send_response(To, Version, TransactionId, Response) ->
 
 -spec make_response(Choice :: ok |
 			      value |
-			      keyColumnsPair |
-			      keyColumnsList |
+			      key_columns_pair |
+			      key_columns_list |
 			      proplist |
-			      kcpIt,
+			      kcpIt |
+			      keys,
 		    Result :: ok |
 			      {ok, value()} |
 			      {ok, [{atom(), term()}]} |
@@ -228,6 +230,9 @@ make_response(kcp_it, {ok, {Key, Value}, Ref}) ->
 			    columns = make_seq_of_fields(Value)},
     wrap_response({kcp_it, #'KcpIt'{key_columns_pair = Kcp,
 				   it = Ref}});
+make_response(keys, {ok, Keys}) ->
+    FieldsList = [#'Fields'{fields = make_seq_of_fields(Key)} || Key <- Keys],
+    wrap_response({keys, #'Keys'{keys = FieldsList}});
 make_response(_, {error, Reason}) ->
     FullStr = lists:flatten(io_lib:format("~p",[{error, Reason}])),
     {error, #'Error'{cause = {system, FullStr}}};
