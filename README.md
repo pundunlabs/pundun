@@ -44,7 +44,22 @@ $ cd <PROD>/lib/pundun<VERSION>/priv/
 $ openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 1095 -nodes
 ```
 
-### Configuring SSH Daemon
+### Initial configuration of the sytem and starting the node
+
+```sh
+$ cd <PROD>/bin/
+$ ./pundun start
+```
+Read local logs from 'PROD/log/local.pundun.log' file.
+
+### Connecting to Command Line Interface
+To connect local pundun node's CLI that is created as above.
+```sh
+$ ssh admin@localhost -p 8884
+```
+Or ssh to remote node that listens on a configured ip and port.
+
+### Configuring SSH Daemon using authorized keys
 
 Edit 'PROD/etc/pundun.yaml'.
 Modify 'pundun_cli_options' parameter.
@@ -62,17 +77,3 @@ $ ssh-keygen -t rsa -f <system_dir>/ssh_host_rsa_key
 ```
 Store any public key in 'authorized_keys' file at the configured 'system_dir'.
 
-### Initial configuration of the sytem and starting the node
-
-```sh
-$ cd <PROD>/bin/
-$ ./pundun start
-```
-Read local logs from 'PROD/log/local.pundun.log' file.
-
-### Connecting to Command Line Interface
-To connect local pundun node's CLI that is created as above.
-```sh
-$ ssh localhost -p 8989
-```
-Or ssh to remote node that listens on a configured ip and port.
