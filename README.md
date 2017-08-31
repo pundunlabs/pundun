@@ -62,5 +62,6 @@ Or ssh to remote node that listens on a configured ip and port.
 ### Configuring SSH Daemon
 
 Edit 'PROD/etc/pundun.yaml'.
+
 Store any public key in 'authorized_keys' file at the configured 'system_dir'.
 
