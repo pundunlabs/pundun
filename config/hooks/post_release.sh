@@ -32,6 +32,12 @@ sed '/^RELEASE_ROOT_DIR=/a \
 export PRODDIR=$RELEASE_ROOT_DIR\
 ' $s
 
+## export PIPE_DIR
+## put run_erl pipes under the release
+sed '/PRODDIR=/a \
+export PIPE_DIR=$RELEASE_ROOT_DIR\/var\/pipes\/pundun\
+' $s
+
 done
 
 ## Create symlinks to configuration files
