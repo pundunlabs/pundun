@@ -30,16 +30,9 @@ init([]) ->
     MaxSecondsBetweenRestarts = 3600,
 
     SupFlags = {RestartStrategy, MaxRestarts, MaxSecondsBetweenRestarts},
-    PBPServerOptions = get_pbp_server_options(),
-    ?debug("mochi_socket_server options for binary protocol (asn1): ~p",
-	[PBPServerOptions]),
     PPBServerOptions = get_ppb_server_options(),
     ?debug("mochi_socket_server options for protocol buffers: ~p",
 	[PPBServerOptions]),
-    PundunBinaryProtocolServer =
-	{pundun_bp_server,
-	 {mochiweb_socket_server, start_link, [PBPServerOptions]},
-	 permanent, 5000, worker, [mochiweb_socket_server]},
     PundunProtocolBuffersServer =
 	{pundun_pb_server,
 	 {mochiweb_socket_server, start_link, [PPBServerOptions]},
@@ -48,20 +41,12 @@ init([]) ->
 	{pundun_cli,
 	 {pundun_cli, start_link, []},
 	 permanent, 5000, worker, [pundun_cli]},
-    {ok, { SupFlags, [PundunBinaryProtocolServer,
-		      PundunProtocolBuffersServer,
+    {ok, { SupFlags, [PundunProtocolBuffersServer,
 		      PundunCLI]} }.
 
 %% ===================================================================
 %% Internal Functions
 %% ===================================================================
--spec get_pbp_server_options() -> Options :: [{atom(), term()}].
-get_pbp_server_options() ->
-    Params= gb_conf:get_param("pundun.yaml", pbp_server_options),
-    PropList = fix_params(Params),
-    [{loop, {pundun_bp_session, init, [[{handler, pundun_bp_handler}]]}}
-      | PropList].
-
 -spec get_ppb_server_options() -> Options :: [{atom(), term()}].
 get_ppb_server_options() ->
     Params= gb_conf:get_param("pundun.yaml", ppb_server_options),

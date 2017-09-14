@@ -13,16 +13,6 @@ params	 :
 			  ssl_opts: {certfile: "cert.pem",
 				     keyfile: "key.pem",
 				     depth: 1}}
-
-    pbp_server_options : {ip: any,
-			  port: 8886,
-			  backlog: 5,
-			  max: 20,
-			  acceptor_pool_size: 5,
-			  ssl: true,
-			  ssl_opts: {certfile: "cert.pem",
-				     keyfile: "key.pem",
-				     depth: 1}}
     pundun_cli_options : {ip: any,
 			  port: 8884,
 			  system_dir: "ssh",

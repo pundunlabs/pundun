@@ -13,11 +13,6 @@ doc
 #common test
 test/logs
 
-#asn1 generated file
-src/APOLLO-PDU-Descriptions.asn1db
-src/APOLLO-PDU-Descriptions.erl
-src/APOLLO-PDU-Descriptions.hrl
-
 # Protocol Buffers generetad files
 src/apollo_pb.erl
 include/apollo_pb.hrl
