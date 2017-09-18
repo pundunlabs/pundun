@@ -19,12 +19,19 @@ fi
 
 ##GENERATE Node Name from path
 sed '/^NAME=/a \
-if [ -z "$NAME" ]; then\
-    NAME="pundun"`echo $HOSTNAME $RELEASE_ROOT_DIR | openssl sha1 | cut -b 10-15`\
-    echo "Generated node name $NAME"\
-    NAME_ARG="$NAME_TYPE $NAME"\
-    sed -i -e "s;$NAME_TYPE;$NAME_TYPE $NAME;" $VMARGS_PATH\
+if [ ! ${VMARGS_PATH} == ${RELEASE_ROOT_DIR}/vm.args ] ; then\
+\    echo "Copy ${VMARGS_PATH} to ${RELEASE_ROOT_DIR}/"\
+\    cp -p ${VMARGS_PATH} ${RELEASE_ROOT_DIR}/ \
+\    VMARGS_PATH=$(add_path vm.args)\
 fi\
+\
+if [ -z "$NAME" ]; then\
+\    NAME="pundun"`echo $HOSTNAME $RELEASE_ROOT_DIR | openssl sha1 | cut -b 10-15`\
+\    echo "Generated node name $NAME"\
+\    NAME_ARG="$NAME_TYPE $NAME"\
+\    sed -i -e "s;$NAME_TYPE;$NAME_TYPE $NAME;" $VMARGS_PATH\
+fi\
+\
 ' $s
 ## export PRODDIR
 ## gb_conf is using and dependent on PRODDIR env variable.
@@ -56,4 +63,5 @@ create_sym_links()
     done
 }
 create_sym_links
+
 # End
