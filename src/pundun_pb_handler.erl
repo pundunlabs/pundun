@@ -154,7 +154,7 @@ apply_procedure({index_read, #'IndexRead'{table_name = TabName,
 					  term = Term,
 					  limit = Limit}}) ->
     Result = enterdb:index_read(TabName, ColumnName, Term, Limit),
-    make_response(keys, Result);
+    make_response(postings, Result);
 apply_procedure(_) ->
     {error, #'Error'{cause = {protocol, "unknown procedure"}}}.
 
@@ -230,9 +230,16 @@ make_response(kcp_it, {ok, {Key, Value}, Ref}) ->
 			    columns = make_seq_of_fields(Value)},
     wrap_response({kcp_it, #'KcpIt'{key_columns_pair = Kcp,
 				   it = Ref}});
-make_response(keys, {ok, Keys}) ->
-    FieldsList = [#'Fields'{fields = make_seq_of_fields(Key)} || Key <- Keys],
-    wrap_response({keys, #'Keys'{keys = FieldsList}});
+make_response(postings, {ok, Postings}) ->
+    List = [#'Posting'{key = make_seq_of_fields(Key),
+		       timestamp = Ts,
+		       frequency = Freq,
+		       position = Pos} ||
+		#{freq := Freq,
+		  key := Key,
+		  pos := Pos,
+		  ts := Ts} <- Postings],
+    wrap_response({postings, #'Postings'{list = List}});
 make_response(_, {error, Reason}) ->
     FullStr = lists:flatten(io_lib:format("~p",[{error, Reason}])),
     {error, #'Error'{cause = {system, FullStr}}};
