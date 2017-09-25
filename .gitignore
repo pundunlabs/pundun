@@ -16,7 +16,7 @@ test/logs
 # Protocol Buffers generetad files
 src/apollo_pb.erl
 include/apollo_pb.hrl
-config/proto
+priv/proto
 
 # ignore sasl_log
 sasl_log
