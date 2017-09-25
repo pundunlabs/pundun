@@ -152,8 +152,9 @@ apply_procedure({remove_index, #'RemoveIndex'{table_name = TabName,
 apply_procedure({index_read, #'IndexRead'{table_name = TabName,
 					  column_name = ColumnName,
 					  term = Term,
-					  limit = Limit}}) ->
-    Result = enterdb:index_read(TabName, ColumnName, Term, Limit),
+					  filter = Filter}}) ->
+    PostingFilter = translate_posting_filter(Filter),
+    Result = enterdb:index_read(TabName, ColumnName, Term, PostingFilter),
     make_response(postings, Result);
 apply_procedure(_) ->
     {error, #'Error'{cause = {protocol, "unknown procedure"}}}.
@@ -627,3 +628,24 @@ translate_stats('POSITION', M) ->
     M#{stats => position};
 translate_stats('NOSTATS', M) ->
     M.
+
+translate_posting_filter(#'PostingFilter'{sort_by = SortBy,
+					  start_ts = StartTs,
+					  end_ts = EndTs,
+					  max_postings = MaxPostings}) ->
+    M1 = translate_sort_by(SortBy, #{}),
+    M2 = set_value(start_ts, StartTs, M1),
+    M3 = set_value(end_ts, EndTs, M2),
+    set_value(max_postings, MaxPostings, M3).
+
+translate_sort_by('RELEVANCE', M) ->
+    M#{sort_by => relevance};
+translate_sort_by('TIMESTAMP', M) ->
+    M#{sort_by => timestamp};
+translate_sort_by(_, M) ->
+    M.
+
+set_value(_Attr, undefined, Map) ->
+    Map;
+set_value(Attr, Val, Map) ->
+    Map#{Attr => Val}.
