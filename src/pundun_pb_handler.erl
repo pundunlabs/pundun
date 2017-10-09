@@ -90,7 +90,7 @@ apply_procedure({write, #'Write'{table_name = TabName,
 			         columns = Columns}}) ->
     StripKey = strip_fields(Key),
     StripColumns = strip_fields(Columns),
-    ?debug("Write  ~p:~p", [StripKey,StripColumns]),
+    ?debug("Write  ~p:~p -> ~p", [StripKey,StripColumns, TabName]),
     Result = enterdb:write(TabName, StripKey, StripColumns),
     make_response(ok, Result);
 apply_procedure({update, #'Update'{table_name = TabName,
@@ -629,6 +629,13 @@ translate_stats('POSITION', M) ->
 translate_stats('NOSTATS', M) ->
     M.
 
+translate_posting_filter(undefined) ->
+    undefined;
+translate_posting_filter(#'PostingFilter'{sort_by = 'RELEVANCE',
+					  start_ts = 0,
+					  end_ts = 0,
+					  max_postings = 0}) ->
+    undefined;
 translate_posting_filter(#'PostingFilter'{sort_by = SortBy,
 					  start_ts = StartTs,
 					  end_ts = EndTs,
