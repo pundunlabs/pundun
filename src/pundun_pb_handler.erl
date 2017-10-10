@@ -603,10 +603,14 @@ translate_transform(_, M) ->
 
 make_add_words([], M)->
     M;
+make_add_words(undefined, M)->
+    M;
 make_add_words(Add, M)->
     M#{add => Add}.
 
 make_delete_words([], M) ->
+    M;
+make_delete_words(undefined, M) ->
     M;
 make_delete_words(Delete, M) ->
     M#{delete => [handle_stopword(W) || W <- Delete]}.
@@ -625,7 +629,7 @@ translate_stats('UNIQUE', M) ->
 translate_stats('FREQUENCY', M) ->
     M#{stats => freqs};
 translate_stats('POSITION', M) ->
-    M#{stats => position};
+    M#{stats => positions};
 translate_stats('NOSTATS', M) ->
     M.
 
