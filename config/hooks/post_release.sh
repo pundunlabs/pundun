@@ -19,7 +19,7 @@ fi
 
 ##GENERATE Node Name from path
 sed '/^NAME=/a \
-if [ ! ${VMARGS_PATH} == ${RELEASE_ROOT_DIR}/vm.args ] ; then\
+if [ ! ${VMARGS_PATH} = ${RELEASE_ROOT_DIR}/vm.args ] ; then\
 \    echo "Copy ${VMARGS_PATH} to ${RELEASE_ROOT_DIR}/"\
 \    cp -p ${VMARGS_PATH} ${RELEASE_ROOT_DIR}/ \
 \    VMARGS_PATH=$(add_path vm.args)\
