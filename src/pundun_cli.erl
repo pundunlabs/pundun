@@ -194,7 +194,7 @@ get_opts() ->
 %%%===================================================================
 -spec show_tables() -> {ok, string()}.
 show_tables() ->
-    TableNames = gb_hash:all_entries(),
+    TableNames = enterdb:list_tables(),
     Spaced = [ T ++" " || T <- TableNames],
     {ok, lists:concat(Spaced)}.
 
@@ -344,7 +344,7 @@ logger(Else) ->
 %%%===================================================================
 -spec table_info_expand([string()]) -> {ok, [string()]}.
 table_info_expand(["table_info", Prefix]) ->
-    TableNames = gb_hash:all_entries(),
+    TableNames = enterdb:list_tables(),
     options_expand(Prefix, TableNames);
 table_info_expand(["table_info", _Arg1 | Rest]) ->
     Attrs = get_table_info_attrs(),
@@ -450,12 +450,32 @@ format_table_info(List) ->
 format_table_info([], []) ->
     {ok, "no available info"};
 format_table_info([{P, V}], Acc) ->
-    S = lists:flatten(io_lib:format("\r~p: ~p", [P, V])),
-    All = lists:reverse([S|Acc]),
+    S = table_attr_to_str(P, V),
+    All = lists:reverse([S | Acc]),
     {ok, re:replace(lists:concat(All), "\n", "&\r", [global, {return, list}])};
 format_table_info([{P, V} | Rest], Acc) ->
-    S = lists:flatten(io_lib:format("\r~p: ~p~n", [P, V])),
-    format_table_info(Rest, [S|Acc]).
+    S = table_attr_to_str(P, V) ++ "\n",
+    format_table_info(Rest, [S | Acc]).
+
+table_attr_to_str(size, V) ->
+    PrintV = format_byte_unit(V, 0),
+    lists:flatten(io_lib:format("\rsize: ~s", [PrintV]));
+table_attr_to_str(P, V) ->
+    lists:flatten(io_lib:format("\r~p: ~p", [P, V])).
+
+format_byte_unit(Size, 5) ->
+    lists:flatten(io_lib:format("~.2f ~s", [Size, format_size_unit(5)]));
+format_byte_unit(Size, Level) when Size < 1024 ->
+    lists:flatten(io_lib:format("~.2f ~s", [Size, format_size_unit(Level)]));
+format_byte_unit(Size, Level) ->
+    format_byte_unit(Size/1024, Level+1).
+
+format_size_unit(0) -> "B";
+format_size_unit(1) -> "KB";
+format_size_unit(2) -> "MB";
+format_size_unit(3) -> "GB";
+format_size_unit(4) -> "TB";
+format_size_unit(5) -> "PB".
 
 -spec attr_atoms(Attrs :: [string()]) -> [atom()].
 attr_atoms(Attrs) ->
