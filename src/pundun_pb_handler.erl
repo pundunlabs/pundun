@@ -156,6 +156,9 @@ apply_procedure({index_read, #'IndexRead'{table_name = TabName,
     PostingFilter = translate_posting_filter(Filter),
     Result = enterdb:index_read(TabName, ColumnName, Term, PostingFilter),
     make_response(postings, Result);
+apply_procedure({list_tables, #'ListTables'{}}) ->
+    Result = enterdb:list_tables(),
+    make_response(string_list, Result);
 apply_procedure(_) ->
     {error, #'Error'{cause = {protocol, "unknown procedure"}}}.
 
@@ -179,7 +182,8 @@ send_response(To, Version, TransactionId, Response) ->
 			      key_columns_list |
 			      proplist |
 			      kcpIt |
-			      keys,
+			      keys |
+			      string_list,
 		    Result :: ok |
 			      {ok, value()} |
 			      {ok, [{atom(), term()}]} |
@@ -187,6 +191,7 @@ send_response(To, Version, TransactionId, Response) ->
 			      {ok, [kvp()], key()} |
 			      {ok, [kvp()]} |
 			      {ok, kvp(), pid()} |
+			      [string()] |
 			      {error, term()}) ->
     {response, #'Response'{}} |
     {error, #'Error'{}}.
@@ -241,6 +246,9 @@ make_response(postings, {ok, Postings}) ->
 		  pos := Pos,
 		  ts := Ts} <- Postings],
     wrap_response({postings, #'Postings'{list = List}});
+make_response(string_list, List) ->
+    FN = #'FieldNames'{field_names = List},
+    wrap_response({string_list, FN});
 make_response(_, {error, Reason}) ->
     FullStr = lists:flatten(io_lib:format("~p",[{error, Reason}])),
     {error, #'Error'{cause = {system, FullStr}}};
