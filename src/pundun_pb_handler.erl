@@ -365,6 +365,8 @@ make_value(undefined) ->
     {null, <<>>};
 make_value(A) when is_atom(A) ->
     {string, atom_to_list(A)};
+make_value(A) when is_map(A) ->
+    make_value(maps:to_list(A));
 make_value(T) when is_tuple(T) ->
     {binary, term_to_binary(T)}.
 
@@ -429,7 +431,9 @@ validate_attributes(["data_model" | T], Acc) ->
 validate_attributes(["num_of_shards" | T], Acc) ->
     validate_attributes(T, [num_of_shards | Acc]);
 validate_attributes(["nodes" | T], Acc) ->
-    validate_attributes(T, [nodes | Acc]);
+    validate_attributes(T, [index_on | Acc]);
+validate_attributes(["index_on" | T], Acc) ->
+    validate_attributes(T, [index_on | Acc]);
 validate_attributes([_H | T], Acc) ->
     validate_attributes(T, Acc).
 
@@ -552,8 +556,8 @@ translate_update_instruction(#'UpdateInstruction'{instruction = 'INCREMENT',
 						  threshold = Threshold,
 						  set_value = SetValue}) ->
     {increment,
-     binary:decode_unsigned(Threshold, big),
-     binary:decode_unsigned(SetValue, big)};
+     decode_unsigned_default(Threshold, undefined),
+     decode_unsigned_default(SetValue, undefined)};
 translate_update_instruction(#'UpdateInstruction'{instruction = 'OVERWRITE'}) ->
     overwrite.
 
@@ -570,7 +574,9 @@ make_index_options(#'IndexOptions'{char_filter = CF,
 				   token_filter = TokenFilter}) ->
     M1 = translate_char_filter(CF, #{}),
     M2 = translate_tokeizer(Tokenizer, M1),
-    make_token_filter(TokenFilter, M2).
+    make_token_filter(TokenFilter, M2);
+make_index_options(undefined) ->
+    undefined.
 
 translate_char_filter('NFC', M) ->
     M#{char_filter => nfc};
@@ -644,8 +650,8 @@ translate_stats('NOSTATS', M) ->
 translate_posting_filter(undefined) ->
     undefined;
 translate_posting_filter(#'PostingFilter'{sort_by = 'RELEVANCE',
-					  start_ts = 0,
-					  end_ts = 0,
+					  start_ts = <<>>,
+					  end_ts = <<>>,
 					  max_postings = 0}) ->
     undefined;
 translate_posting_filter(#'PostingFilter'{sort_by = SortBy,
@@ -653,9 +659,16 @@ translate_posting_filter(#'PostingFilter'{sort_by = SortBy,
 					  end_ts = EndTs,
 					  max_postings = MaxPostings}) ->
     M1 = translate_sort_by(SortBy, #{}),
-    M2 = set_value(start_ts, StartTs, M1),
-    M3 = set_value(end_ts, EndTs, M2),
+    M2 = set_value(start_ts, decode_unsigned_default(StartTs, undefined), M1),
+    M3 = set_value(end_ts, decode_unsigned_default(EndTs, undefined), M2),
     set_value(max_postings, MaxPostings, M3).
+
+decode_unsigned_default(<<>>, Default) ->
+    Default;
+decode_unsigned_default(Bin, _) when is_binary(Bin) ->
+    binary:decode_unsigned(Bin, big);
+decode_unsigned_default(_, Default) ->
+    Default.
 
 translate_sort_by('RELEVANCE', M) ->
     M#{sort_by => relevance};
