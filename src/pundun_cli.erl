@@ -466,7 +466,7 @@ table_attr_to_str(P, V) ->
 format_byte_unit(Size, 5) ->
     lists:flatten(io_lib:format("~.2f ~s", [Size, format_size_unit(5)]));
 format_byte_unit(Size, Level) when Size < 1024 ->
-    lists:flatten(io_lib:format("~.2f ~s", [Size, format_size_unit(Level)]));
+    lists:flatten(io_lib:format("~.2f ~s", [Size/1.0, format_size_unit(Level)]));
 format_byte_unit(Size, Level) ->
     format_byte_unit(Size/1024, Level+1).
 
