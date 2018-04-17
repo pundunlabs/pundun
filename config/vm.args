@@ -1,6 +1,6 @@
 ## Name of the node
 ## Generate name based on host and path
--sname
+-sname noname
 
 ## Cookie for distributed erlang
 -setcookie pundun
