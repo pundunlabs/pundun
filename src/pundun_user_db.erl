@@ -177,7 +177,8 @@ verify_user(User, Password) ->
     case mnesia:dirty_read(pundun_user, User) of
 	[#pundun_user{salt = Salt, iteration_count = IC,
 		      salted_password = SaltedPassword}] ->
-	    case scramerl_lib:hi(Password, Salt, IC) of
+	    Normalized = stringprep:prepare(Password),
+	    case scramerl_lib:hi(Normalized, Salt, IC) of
 		SaltedPassword ->
 		    true;
 		_ ->
