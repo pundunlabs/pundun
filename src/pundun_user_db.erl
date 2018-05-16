@@ -94,10 +94,10 @@ add_user(User, PassWd) ->
 -spec add_user_fun(User :: string(), PassWd :: string()) ->
     {ok, User :: string()} | {error, Reason :: term()}.
 add_user_fun(User, PassWd) ->
-    User_ = stringprep:prepare(User),
+    User_ = stringprep:prepare(User, saslprep),
     case mnesia:read(pundun_user, User_) of
 	[] ->
-	    PassWd_ = stringprep:prepare(PassWd),
+	    PassWd_ = stringprep:prepare(PassWd, saslprep),
 	    Salt = get_salt(16),
 	    IterCount = 4096,
 	    SaltedPassword = scramerl_lib:hi(PassWd_, Salt, IterCount),
@@ -116,7 +116,7 @@ add_user_fun(User, PassWd) ->
 -spec del_user(User :: string()) ->
     ok | {error, Reason :: term()}.
 del_user(User) ->
-    User_ = stringprep:prepare(User),
+    User_ = stringprep:prepare(User, saslprep),
     case transaction(fun() -> mnesia:delete(pundun_user, User_, write) end) of
 	{atomic, ok} -> ok;
 	Else -> Else
@@ -137,10 +137,10 @@ passwd(User, PassWd) ->
 -spec passwd_fun(User :: string(), PassWd :: string()) ->
     {ok, User :: string()} | {error, Reason :: term()}.
 passwd_fun(User, PassWd) ->
-    User_ = stringprep:prepare(User),
+    User_ = stringprep:prepare(User, saslprep),
     case mnesia:read(pundun_user, User_) of
 	[R] ->
-	    PassWd_ = stringprep:prepare(PassWd),
+	    PassWd_ = stringprep:prepare(PassWd, saslprep),
 	    Salt = get_salt(16),
 	    IterCount = R#pundun_user.iteration_count,
 	    SaltedPassword = scramerl_lib:hi(PassWd_, Salt, IterCount),
@@ -161,7 +161,7 @@ list_users()->
 -spec write_admin_user() -> ok.
 write_admin_user() ->
     Salt = get_salt(16),
-    Normalized = stringprep:prepare("admin"),
+    Normalized = stringprep:prepare("admin", saslprep),
     IterCount = 4096,
     SaltedPassword = scramerl_lib:hi(Normalized, Salt, IterCount),
     Record = #pundun_user{username = "admin",
@@ -177,7 +177,7 @@ verify_user(User, Password) ->
     case mnesia:dirty_read(pundun_user, User) of
 	[#pundun_user{salt = Salt, iteration_count = IC,
 		      salted_password = SaltedPassword}] ->
-	    Normalized = stringprep:prepare(Password),
+	    Normalized = stringprep:prepare(Password, saslprep),
 	    case scramerl_lib:hi(Normalized, Salt, IC) of
 		SaltedPassword ->
 		    true;
