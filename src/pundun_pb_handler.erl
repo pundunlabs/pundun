@@ -335,13 +335,8 @@ make_seq_of_fields(Else)->
     Else.
 
 -spec make_value(V :: term()) ->
-    {boolean, Bool :: true | false} |
-    {int, Int :: integer()} |
-    {binary, Bin :: binary()} |
-    {null, Null :: undefined} |
-    {double, Double :: binary()} |
-    {binary, Binary :: binary()} |
-    {string, Str :: [integer()]}.
+    #{type := Value :: {binary | int | double | boolean |
+			string | list | null | map, term()}}.
 make_value(V) when is_binary(V) ->
     #{type => {binary, V}};
 make_value(V) when is_integer(V) ->
