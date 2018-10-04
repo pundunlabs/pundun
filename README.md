@@ -7,19 +7,19 @@ Data Management Framework with a Distributed Database.
 ### Building Pundun Framework
 One may like to change configuration parameters before release. Please see below for pundun configuration.
 
-#####dev-mode
+##### dev-mode
 ```sh
 $ git clone https://github.com/pundunlabs/pundun.git
 $ cd pundun
 $ rebar3 release
 ```
 
-#####deployable
+##### deployable
 ```sh
 $ rebar3 as prod tar
 ```
 
-#####deployable with erts included
+##### deployable with erts included
 ```sh
 $ rebar3 as target tar
 ```
