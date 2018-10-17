@@ -88,4 +88,4 @@ fix_ssl_opts([{"keyfile", KeyFile} | Rest], Acc) ->
 fix_ssl_opts([{K, V} | Rest], Acc) ->
     fix_ssl_opts(Rest, [{list_to_atom(K), V} | Acc]);
 fix_ssl_opts([], Acc) ->
-    lists:reverse(Acc).
+    [{packet, 4} | lists:reverse(Acc)].
