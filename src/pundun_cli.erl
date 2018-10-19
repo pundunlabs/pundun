@@ -241,11 +241,23 @@ user(["add", User, Passwd]) ->
 	{error, R} ->
 	    {ok, print(R)}
     end;
+user(["add", User, Passwd, Details]) ->
+    ParsedDetails = parse_details(Details),
+    case pundun_user_db:add_user(User, Passwd, ParsedDetails) of
+	{ok, U} ->
+	    {ok, print(U)};
+	{error, R} ->
+	    {ok, print(R)}
+    end;
 user(["delete", User]) ->
     Result = pundun_user_db:del_user(User),
     {ok, print(Result)};
 user(["passwd", User, Passwd]) ->
     Result = pundun_user_db:passwd(User, Passwd),
+    {ok, print(Result)};
+user(["rights", User, Details]) ->
+    ParsedDetails = parse_details(Details),
+    Result = pundun_user_db:upd_details(User, ParsedDetails),
     {ok, print(Result)};
 user(_) ->
     {ok, "Unrecognised user option."}.
@@ -366,13 +378,19 @@ cluster_expand(_) ->
 
 -spec user_expand([string()]) -> {ok, string()}.
 user_expand(["user", Prefix])->
-    Options = ["add", "delete", "passwd"],
+    Options = ["add", "delete", "passwd", "rights"],
     options_expand(Prefix, Options);
 user_expand(["user", "delete", Prefix])->
     Options = pundun_user_db:list_users(),
     options_expand(Prefix, Options);
 user_expand(["user", "passwd", Prefix])->
     Options = pundun_user_db:list_users(),
+    options_expand(Prefix, Options);
+user_expand(["user", "rights", Prefix])->
+    Options = pundun_user_db:list_users(),
+    options_expand(Prefix, Options);
+user_expand(["user", "rights", User, Prefix])->
+    Options = ["all", "readonly"],
     options_expand(Prefix, Options);
 user_expand(_) ->
     {ok, []}.
@@ -543,6 +561,8 @@ user_usage() ->
     "\r\tadd USER PASSWD\n"++
     "\r\tdelete USER\n"++
     "\r\tpasswd USER\n"++
+    "\r\trights USER readonly\n"++
+    "\r\trights USER all\n"++
     "\rUSER:\n\r\tstring\n"++
     "\rPASSWD:\n\r\tstring\n".
 
@@ -708,3 +728,10 @@ discover_nodes() ->
     spawn(fun() ->
 	gen_server:cast(?MODULE, {register_nodes, nodes()})
     end).
+
+parse_details("readonly") ->
+    #{rights => readonly};
+parse_details("all") ->
+    #{rights => all};
+parse_details(_) ->
+    #{}.

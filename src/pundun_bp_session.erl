@@ -52,7 +52,9 @@
 		socket,
 		handler,
 		options,
-		correlation_table
+		correlation_table,
+		user,
+		user_details
 		}).
 
 %%%===================================================================
@@ -177,9 +179,10 @@ handle_info({ssl, Socket, <<B1,B2,Data/binary>>},
 	    State = #state{scram_state = ?AUTHENTICATED,
 			   socket = {ssl, Socket},
 			   handler = Handler,
-			   correlation_table = Tid}) ->
+			   correlation_table = Tid,
+			   user_details = UserDetails}) ->
     ?debug("Received ssl data: ~p",[Data]),
-    Pid = spawn_link(Handler, handle_incomming_data, [Data, self()]),
+    Pid = spawn_link(Handler, handle_incomming_data, [Data, self(), UserDetails]),
     monitor(process, Pid),
     register_transaction(Tid, {Pid, <<B1,B2>>}),
     ok = mochiweb_socket:setopts({ssl, Socket}, [{active, once}]),
@@ -282,7 +285,8 @@ handle_client_first_message("client-first-message", ScramData, State) ->
 				   {client_first_msg_bare, ClientFirstMsgBare},
 				   {server_first_msg, MsgStr}]),
     {ok, State#state{scram_state = ?WAIT_FOR_CLIENT_FINAL,
-		     scram_data = maps:merge(ScramData, AddScramData)}};
+		     scram_data = maps:merge(ScramData, AddScramData),
+		     user = Username}};
 handle_client_first_message(Message, _ScramData, State) ->
     ?debug("Invalid client first message: ~p", [Message]),
     {ok, State}.
@@ -342,7 +346,8 @@ handle_client_final_message(Proof, Proof,
     MsgStr = scramerl:server_final_message(ServerSignature),
     ServerFirstMessage = list_to_binary(MsgStr),
     mochiweb_socket:send(State#state.socket, ServerFirstMessage),
-    {ok, State#state{scram_state = ?AUTHENTICATED}};
+    {ok, UserDetails} = get_user_details(State#state.user),
+    {ok, State#state{scram_state = ?AUTHENTICATED, user_details = UserDetails}};
 handle_client_final_message(Proof, CheckProof,
 			    Nonce, CheckNonce, State) ->
     ?debug("Unmatched Proof ~p =? ~p",[Proof, CheckProof]),
@@ -359,6 +364,16 @@ get_user_salt(Username) ->
 	[#pundun_user{salt = Salt,
 		      iteration_count = IterCount}] ->
 	    {ok, Salt, IterCount};
+	_ ->
+	    {error, "unknown-user"}
+    end.
+
+-spec get_user_details(Username :: string()) ->
+    {ok, Details :: map()} | {error, Reason :: term()}.
+get_user_details(Username) ->
+    case mnesia:dirty_read(pundun_user, Username) of
+	[#pundun_user{user_details = UserDetails}] ->
+	    {ok, UserDetails};
 	_ ->
 	    {error, "unknown-user"}
     end.

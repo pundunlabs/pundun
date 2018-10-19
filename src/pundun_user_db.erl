@@ -24,8 +24,11 @@
 
 -export([create_tables/1,
 	 add_user/2,
+	 add_user/3,
 	 del_user/1,
 	 passwd/2,
+	 upd_details/2,
+	 details/2,
 	 list_users/0,
 	 verify_user/2]).
 
@@ -82,7 +85,7 @@ create_table(_, _) ->
 -spec add_user(User :: string(), PassWd :: string()) ->
     {ok, User :: string()} | {error, Reason :: term()}.
 add_user(User, PassWd) ->
-    case transaction(fun()-> add_user_fun(User, PassWd) end) of
+    case transaction(fun()-> add_user_fun(User, PassWd, #{}) end) of
 	{atomic, {ok, U}} ->
 	    {ok, U};
 	{atomic, Else} ->
@@ -91,9 +94,21 @@ add_user(User, PassWd) ->
 	    {error, Reason}
     end.
 
--spec add_user_fun(User :: string(), PassWd :: string()) ->
+-spec add_user(User :: string(), PassWd :: string(), Details :: map()) ->
     {ok, User :: string()} | {error, Reason :: term()}.
-add_user_fun(User, PassWd) ->
+add_user(User, PassWd, Details) ->
+    case transaction(fun()-> add_user_fun(User, PassWd, Details) end) of
+	{atomic, {ok, U}} ->
+	    {ok, U};
+	{atomic, Else} ->
+	    Else;
+	{error, Reason} ->
+	    {error, Reason}
+    end.
+
+-spec add_user_fun(User :: string(), PassWd :: string(), Details :: map()) ->
+    {ok, User :: string()} | {error, Reason :: term()}.
+add_user_fun(User, PassWd, Details) ->
     User_ = stringprep:prepare(User, saslprep),
     case mnesia:read(pundun_user, User_) of
 	[] ->
@@ -104,7 +119,8 @@ add_user_fun(User, PassWd) ->
 	    Record = #pundun_user{username = User_,
 				  salt = Salt,
 				  iteration_count = IterCount,
-				  salted_password = SaltedPassword},
+				  salted_password = SaltedPassword,
+				  user_details = Details},
 	    ok = mnesia:write(Record),
 	    {ok, User_};
 	[_] ->
@@ -146,6 +162,64 @@ passwd_fun(User, PassWd) ->
 	    SaltedPassword = scramerl_lib:hi(PassWd_, Salt, IterCount),
 	    Record = R#pundun_user{salt = Salt,
 				   salted_password = SaltedPassword},
+	    mnesia:write(Record);
+	[] ->
+	    {error, user_not_exists};
+	Else ->
+	    Else
+    end.
+
+-spec upd_details(User :: string(), Details :: map()) ->
+    ok | {error, Reason :: term()}.
+upd_details(User, Details) ->
+    case transaction(fun()-> upd_details_fun(User, Details) end) of
+	{atomic, {ok, U}} ->
+	    {ok, U};
+	{atomic, Else} ->
+	    Else;
+	{error, Reason} ->
+	    {error, Reason}
+    end.
+
+-spec upd_details_fun(User :: string(), Details :: map()) ->
+    {ok, User :: string()} | {error, Reason :: term()}.
+upd_details_fun(User, Details) ->
+    User_ = stringprep:prepare(User, saslprep),
+    case mnesia:read(pundun_user, User_) of
+	[R] ->
+	    CurrDetails = R#pundun_user.user_details,
+	    Record = R#pundun_user{
+			    user_details = 
+				maps:merge(CurrDetails, Details)
+				   },
+	    mnesia:write(Record);
+	[] ->
+	    {error, user_not_exists};
+	Else ->
+	    Else
+    end.
+
+-spec details(User :: string(), Details :: map()) ->
+    ok | {error, Reason :: term()}.
+details(User, Details) ->
+    case transaction(fun()-> details_fun(User, Details) end) of
+	{atomic, {ok, U}} ->
+	    {ok, U};
+	{atomic, Else} ->
+	    Else;
+	{error, Reason} ->
+	    {error, Reason}
+    end.
+
+-spec details_fun(User :: string(), Details :: map()) ->
+    {ok, User :: string()} | {error, Reason :: term()}.
+details_fun(User, Details) ->
+    User_ = stringprep:prepare(User, saslprep),
+    case mnesia:read(pundun_user, User_) of
+	[R] ->
+	    Record = R#pundun_user{
+			    user_details = Details
+				   },
 	    mnesia:write(Record);
 	[] ->
 	    {error, user_not_exists};

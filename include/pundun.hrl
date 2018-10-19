@@ -18,4 +18,5 @@
 -record(pundun_user, {username :: string(),
 		      salt :: string(),
 		      iteration_count :: string(),
-		      salted_password :: binary()}).
+		      salted_password :: binary(),
+		      user_details :: map()}).

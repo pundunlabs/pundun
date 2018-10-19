@@ -21,7 +21,7 @@
 
 -module(pundun_pb_handler).
 
--export([handle_incomming_data/2]).
+-export([handle_incomming_data/3]).
 
 -include("pundun.hrl").
 -include_lib("enterdb/include/enterdb.hrl").
@@ -32,61 +32,124 @@
 %% Handle received binary PBP data.
 %% @end
 %%--------------------------------------------------------------------
--spec handle_incomming_data(Bin :: binary(), From :: pid()) ->
-    ok.
-handle_incomming_data(Bin, From) ->
+-spec handle_incomming_data(Bin :: binary(), From :: pid(), UserDetails :: map()) ->
+    ok | {error, Reason :: term()}.
+handle_incomming_data(Bin, From, UserDetails) ->
     case apollo_pb:decode_msg(Bin, 'ApolloPdu') of
 	#{} = PDU ->
 	    ?debug("PDU: ~p", [PDU]),
-	    handle_pdu(PDU, From);
+	    handle_pdu(PDU, From, UserDetails);
 	{error, Reason} ->
 	    ?debug("Error decoding received data: ~p", [Reason])
     end.
 
--spec handle_pdu(PDU :: #{}, From :: pid()) ->
-    ok.
+-spec handle_pdu(PDU :: #{}, From :: pid(), UserDetails :: map()) ->
+    ok | {error, Reason :: term()}.
 handle_pdu(#{version := Version,
 	     transaction_id := Tid,
 	     procedure := Procedure},
-	   From) ->
-    Response = apply_procedure(Procedure),
+	   From, UserDetails) ->
+    Response = apply_procedure(Procedure, UserDetails),
     send_response(From, Version, Tid, Response).
 
--spec apply_procedure(Procedure :: {atom(), term()}) ->
+-spec apply_procedure(Procedure :: {atom(), term()}, UserDetails :: map()) ->
     {atom(), term()}.
-apply_procedure({create_table, #{table_name := TabName,
-				 keys := KeysDef,
-				 table_options := TabOptions}})->
-    Options = make_options(TabOptions),
-    Result = enterdb:create_table(TabName, KeysDef, Options),
-    make_response(ok, Result);
-apply_procedure({delete_table, #{table_name := TabName}}) ->
-    Result = enterdb:delete_table(TabName),
-    make_response(ok, Result);
-apply_procedure({open_table, #{table_name := TabName}}) ->
-    Result = enterdb:open_table(TabName),
-    make_response(ok, Result);
-apply_procedure({close_table, #{table_name := TabName}}) ->
-    Result = enterdb:close_table(TabName),
-    make_response(ok, Result);
-apply_procedure({table_info, #{table_name := TabName,
-			       attributes := []}}) ->
-    Result = enterdb:table_info(TabName),
-    make_response(proplist, Result);
-apply_procedure({table_info, #{table_name := TabName,
-			       attributes := Attributes}}) ->
-    ValidAttribites = validate_attributes(Attributes, []),
-    Result = enterdb:table_info(TabName, ValidAttribites),
-    make_response(proplist, Result);
+%% read procedures
 apply_procedure({read, #{table_name := TabName,
-			 key := Key}}) ->
+			 key := Key}},
+		_UserDetails) ->
     StripKey = strip_fields(Key),
     ?debug("Read Key: ~p", [StripKey]),
     Result = enterdb:read(TabName, StripKey),
     make_response(columns, Result);
+apply_procedure({table_info, #{table_name := TabName,
+			       attributes := []}},
+		_UserDetails) ->
+    Result = enterdb:table_info(TabName),
+    make_response(proplist, Result);
+apply_procedure({table_info, #{table_name := TabName,
+			       attributes := Attributes}},
+		_UserDetails) ->
+    ValidAttribites = validate_attributes(Attributes, []),
+    Result = enterdb:table_info(TabName, ValidAttribites),
+    make_response(proplist, Result);
+apply_procedure({read_range, #{table_name := TabName,
+			       start_key := SKey,
+			       end_key := EKey,
+			       limit := Limit}},
+		_UserDetails) ->
+    Start = strip_fields(SKey),
+    End = strip_fields(EKey),
+    Result = enterdb:read_range(TabName, {Start, End}, Limit),
+    make_response(key_columns_list, Result);
+apply_procedure({read_range_n, #{table_name := TabName,
+				 start_key := StartKey,
+				 n := N}},
+		_UserDetails) ->
+    Start = strip_fields(StartKey),
+    Result = enterdb:read_range_n(TabName, Start, N),
+    make_response(key_columns_list, Result);
+apply_procedure({first, #{table_name := TabName}},
+		_UserDetails) ->
+    Result = enterdb:first(TabName),
+    make_response(kcp_it, Result);
+apply_procedure({last, #{table_name := TabName}},
+	        _UserDetails) ->
+    Result = enterdb:last(TabName),
+    make_response(kcp_it, Result);
+apply_procedure({seek, #{table_name := TabName,
+			 key := Key}},
+	        _UserDetails) ->
+    Result = enterdb:seek(TabName, strip_fields(Key)),
+    make_response(kcp_it, Result);
+apply_procedure({next, #{it := It}},
+		_UserDetails) ->
+    Result = enterdb:next(It),
+    make_response(key_columns_pair, Result);
+apply_procedure({prev, #{it := It}},
+	        _UserDetails) ->
+    Result = enterdb:prev(It),
+    make_response(key_columns_pair, Result);
+apply_procedure({index_read, #{table_name := TabName,
+			       column_name := ColumnName,
+			       term := Term,
+			       filter := Filter}},
+		_UserDetails) ->
+    PostingFilter = translate_posting_filter(Filter),
+    Result = enterdb:index_read(TabName, ColumnName, Term, PostingFilter),
+    make_response(postings, Result);
+apply_procedure({list_tables, #{}},
+		_UserDetails) ->
+    Result = enterdb:list_tables(),
+    make_response(string_list, Result);
+apply_procedure(_,
+		#{rights:=readonly}) ->
+    {error, #{cause => {protocol, "readonly rights"}}};
+    
+%% non read only procedures
+apply_procedure({create_table, #{table_name := TabName,
+				 keys := KeysDef,
+				 table_options := TabOptions}},
+		_UserDetails)->
+    Options = make_options(TabOptions),
+    Result = enterdb:create_table(TabName, KeysDef, Options),
+    make_response(ok, Result);
+apply_procedure({delete_table, #{table_name := TabName}},
+		_UserDetails) ->
+    Result = enterdb:delete_table(TabName),
+    make_response(ok, Result);
+apply_procedure({open_table, #{table_name := TabName}},
+		_UserDetails) ->
+    Result = enterdb:open_table(TabName),
+    make_response(ok, Result);
+apply_procedure({close_table, #{table_name := TabName}},
+		_UserDetails) ->
+    Result = enterdb:close_table(TabName),
+    make_response(ok, Result);
 apply_procedure({write, #{table_name := TabName,
 			  key := Key,
-			  columns := Columns}}) ->
+			  columns := Columns}},
+		_UserDetails) ->
     StripKey = strip_fields(Key),
     StripColumns = strip_fields(Columns),
     ?debug("Write  ~p:~p -> ~p", [StripKey, StripColumns, TabName]),
@@ -94,71 +157,36 @@ apply_procedure({write, #{table_name := TabName,
     make_response(ok, Result);
 apply_procedure({update, #{table_name := TabName,
 			   key := Key,
-			   update_operation := UpdateOperation}}) ->
+			   update_operation := UpdateOperation}},
+		_UserDetails) ->
     StripKey = strip_fields(Key),
     Op = translate_update_operation(UpdateOperation),
     ?debug("Update  ~p:~p", [StripKey, Op]),
     Result = enterdb:update(TabName, StripKey, Op),
     make_response(columns, Result);
 apply_procedure({delete, #{table_name := TabName,
-			   key := Key}}) ->
+			   key := Key}},
+		_UserDetails) ->
     StripKey = strip_fields(Key),
     Result = enterdb:delete(TabName, StripKey),
     make_response(ok, Result);
-apply_procedure({read_range, #{table_name := TabName,
-			       start_key := SKey,
-			       end_key := EKey,
-			       limit := Limit}}) ->
-    Start = strip_fields(SKey),
-    End = strip_fields(EKey),
-    Result = enterdb:read_range(TabName, {Start, End}, Limit),
-    make_response(key_columns_list, Result);
-apply_procedure({read_range_n, #{table_name := TabName,
-				 start_key := StartKey,
-				 n := N}}) ->
-    Start = strip_fields(StartKey),
-    Result = enterdb:read_range_n(TabName, Start, N),
-    make_response(key_columns_list, Result);
-apply_procedure({batch_write, #{table_name := _TabName,
-				delete_keys := _DeleteKeys,
-				write_kvps := _WriteKvps}}) ->
-    {error, #{cause => {protocol, "function not supported"}}};
-apply_procedure({first, #{table_name := TabName}}) ->
-    Result = enterdb:first(TabName),
-    make_response(kcp_it, Result);
-apply_procedure({last, #{table_name := TabName}}) ->
-    Result = enterdb:last(TabName),
-    make_response(kcp_it, Result);
-apply_procedure({seek, #{table_name := TabName,
-			 key := Key}}) ->
-    Result = enterdb:seek(TabName, strip_fields(Key)),
-    make_response(kcp_it, Result);
-apply_procedure({next, #{it := It}}) ->
-    Result = enterdb:next(It),
-    make_response(key_columns_pair, Result);
-apply_procedure({prev, #{it := It}}) ->
-    Result = enterdb:prev(It),
-    make_response(key_columns_pair, Result);
 apply_procedure({add_index, #{table_name := TabName,
-			     config := Config}}) ->
+			     config := Config}},
+		_UserDetails) ->
     IndexConfig = make_index_config(Config),
     Result = enterdb:add_index(TabName, IndexConfig),
     make_response(ok, Result);
 apply_procedure({remove_index, #{table_name := TabName,
-				 columns := Columns}}) ->
+				 columns := Columns}},
+	        _UserDetails) ->
     Result = enterdb:remove_index(TabName, Columns),
     make_response(ok, Result);
-apply_procedure({index_read, #{table_name := TabName,
-			       column_name := ColumnName,
-			       term := Term,
-			       filter := Filter}}) ->
-    PostingFilter = translate_posting_filter(Filter),
-    Result = enterdb:index_read(TabName, ColumnName, Term, PostingFilter),
-    make_response(postings, Result);
-apply_procedure({list_tables, #{}}) ->
-    Result = enterdb:list_tables(),
-    make_response(string_list, Result);
-apply_procedure(_) ->
+apply_procedure({batch_write, #{table_name := _TabName,
+				delete_keys := _DeleteKeys,
+				write_kvps := _WriteKvps}},
+		_UserDetails) ->
+    {error, #{cause => {protocol, "function not supported"}}};
+apply_procedure(_Procedure,_UserDetails) ->
     {error, #{cause => {protocol, "unknown procedure"}}}.
 
 -spec send_response(To :: pid,
@@ -420,6 +448,8 @@ validate_attributes(["nodes" | T], Acc) ->
     validate_attributes(T, [index_on | Acc]);
 validate_attributes(["index_on" | T], Acc) ->
     validate_attributes(T, [index_on | Acc]);
+validate_attributes(["distributed" | T], Acc) ->
+    validate_attributes(T, [distributed | Acc]);
 validate_attributes([_H | T], Acc) ->
     validate_attributes(T, Acc).
 
