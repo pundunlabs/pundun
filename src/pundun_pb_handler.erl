@@ -89,6 +89,13 @@ apply_procedure({read_range_n, #{table_name := TabName,
     Start = strip_fields(StartKey),
     Result = enterdb:read_range_n(TabName, Start, N),
     make_response(key_columns_list, Result);
+apply_procedure({read_range_n_ts, #{table_name := TabName,
+				  start_key := StartKey,
+				  n := N}},
+		_UserDetails) ->
+    Start = strip_fields(StartKey),
+    Result = enterdb:read_range_n_ts(TabName, Start, N),
+    make_response(key_columns_list, Result);
 apply_procedure({first, #{table_name := TabName}},
 		_UserDetails) ->
     Result = enterdb:first(TabName),
@@ -395,7 +402,7 @@ make_value(Map) when is_map(Map) ->
 	end,
     #{type => {map, #{values => maps:fold(Fun, #{}, Map)}}};
 make_value(T) when is_tuple(T) ->
-    make_value(tuple_to_list(T)).
+    #{type => {list, #{values=>[make_value(E) || E <- tuple_to_list(T)]}}}.
 
 -spec strip_fields(Fields :: [#{name := string(),
 				value := term()}]) ->
