@@ -21,11 +21,45 @@
 
 -module(pundun_pb_handler).
 
--export([handle_incomming_data/2]).
+-export([decode_pdu/1,
+	 encode_pdu/1,
+	 make_auth_response/2,
+	 handle_incomming_data/2]).
 
 -include("pundun.hrl").
 -include_lib("enterdb/include/enterdb.hrl").
 -include_lib("gb_log/include/gb_log.hrl").
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Decode given binary data as an Apollo PDU.
+%% @end
+%%--------------------------------------------------------------------
+-spec decode_pdu(Bin :: binary()) ->
+    PDU :: map() | {error, Reason ::term()}.
+decode_pdu(Bin) ->
+    apollo_pb:decode_msg(Bin, 'ApolloPdu').
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Encode given term as an Apollo PDU.
+%% @end
+%%--------------------------------------------------------------------
+-spec encode_pdu(PDU :: map()) ->
+    Bin :: binary() | {error, Reason ::term()}.
+encode_pdu(PDU) ->
+    apollo_pb:encode_msg(PDU, 'ApolloPdu').
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Make a response authentication response given request PDU and
+%% Payload.
+%% @end
+%%--------------------------------------------------------------------
+-spec make_auth_response(PDU :: map(), Payload :: binary()) ->
+    PDU :: map().
+ make_auth_response(PDU, Payload) ->
+     PDU#{procedure => {auth_exchange, #{payload =>Payload}}}.
 
 %%--------------------------------------------------------------------
 %% @doc

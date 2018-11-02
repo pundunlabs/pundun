@@ -122,7 +122,7 @@ init(Socket, Opts, Args) ->
 		   options = Opts,
 		   correlation_table = Tid},
     Timeout = ?TIMEOUT,
-    ok = mochiweb_socket:setopts(Socket, [{active, once}]),
+    ok = mochiweb_socket:setopts(Socket, [{active, once}, {packet, 4}]),
     process_flag(trap_exit, true),
     gen_server:enter_loop(?MODULE, [], State, Timeout).
 
@@ -157,7 +157,7 @@ handle_call(_Request, _From, State) ->
 handle_cast({respond, Data, Pid}, State = #state{correlation_table = Tid}) ->
     ?debug("Responding with ~p", [Data]),
     [{Pid, Corr}] = ets:lookup(Tid, Pid),
-    ok = mochiweb_socket:send(State#state.socket, [Corr, Data]),
+    mochiweb_socket:send(State#state.socket, [Corr, Data]),
     {noreply, State};
 handle_cast(_Msg, State) ->
     ?debug("Unhandled cast message received: ~p", [_Msg]),
@@ -184,25 +184,51 @@ handle_info({ssl, Socket, <<B1,B2,Data/binary>>},
     register_transaction(Tid, {Pid, <<B1,B2>>}),
     ok = mochiweb_socket:setopts({ssl, Socket}, [{active, once}]),
     {noreply, State, ?TIMEOUT};
-handle_info({ssl, Socket, Data}, State = #state{scram_state = ?WAIT_FOR_CLIENT_FIRST,
-						socket = {ssl, Socket}}) ->
-    ?debug("Start SCRAM AUTH: ~p",[Data]),
-    {ok, NewState} = handle_client_first_message(Data, State),
+handle_info({ssl, Socket, <<B1,B2,Data/binary>>},
+	    State = #state{scram_state = ?WAIT_FOR_CLIENT_FIRST,
+			   socket = {ssl, Socket},
+			   handler = Handler}) ->
+    PDU = Handler:decode_pdu(Data),
+    ?debug("CorrID: ~p",[<<B1,B2>>]),
+    ?debug("Start SCRAM AUTH: ~p",[PDU]),
+    NewState =
+	case handle_client_first_message(PDU) of
+	    {ok, Payload, ScramData} ->
+		ResponsePdu = Handler:make_auth_response(PDU, Payload),
+		Bin = Handler:encode_pdu(ResponsePdu),
+		?debug("Sending server-first-message: ~p", [[<<B1, B2>>, Bin]]),
+		mochiweb_socket:send({ssl, Socket}, <<B1, B2, Bin/binary>>),
+		State#state{scram_state = ?WAIT_FOR_CLIENT_FINAL,
+			    scram_data = ScramData};
+	    {error, _Reason} ->
+		State
+	end,
     ok = mochiweb_socket:setopts({ssl, Socket}, [{active, once}]),
     {noreply, NewState, ?TIMEOUT};
-handle_info({ssl, Socket, Data}, State = #state{scram_state = ?WAIT_FOR_CLIENT_FINAL,
-						socket = {ssl, Socket}}) ->
-    ?debug("Handle SCRAM Client Final Message: ~p",[Data]),
-    {ok, NewState} = handle_client_final_message(Data, State),
-    Sopts =
-	case NewState#state.scram_state of
-	    ?AUTHENTICATED ->
-		[{active, once}, {packet, 4}];
+handle_info({ssl, Socket, <<B1,B2,Data/binary>>},
+	    State = #state{scram_state = ?WAIT_FOR_CLIENT_FINAL,
+			   scram_data = ScramData,
+			   socket = {ssl, Socket},
+			   handler = Handler}) ->
+    PDU = Handler:decode_pdu(Data),
+    ?debug("Handle SCRAM Client Final Message: ~p",[PDU]),
+    NewState =
+	case handle_client_final_message(PDU, ScramData) of
+	    {ok, Payload}  ->
+		ResponsePdu = Handler:make_auth_response(PDU, Payload),
+		Bin = Handler:encode_pdu(ResponsePdu),
+		mochiweb_socket:send({ssl, Socket}, <<B1, B2, Bin/binary>>),
+		State#state{scram_state = ?AUTHENTICATED};
+	    {nok, Payload} ->
+		ResponsePdu = Handler:make_auth_response(PDU, Payload),
+		Bin = Handler:encode_pdu(ResponsePdu),
+		mochiweb_socket:send(Socket, [<<B1, B2>>, Bin]),
+		State#state{scram_state = ?WAIT_FOR_CLIENT_FIRST};
 	    _ ->
-		[{active, once}]
+		State#state{scram_state = ?WAIT_FOR_CLIENT_FIRST}
 	end,
-    ok = mochiweb_socket:setopts({ssl, Socket}, Sopts),
-    {noreply, NewState, ?TIMEOUT};
+    ok = mochiweb_socket:setopts({ssl, Socket}, [{active, once}]),
+    {noreply, NewState#state{scram_data = undefined}, ?TIMEOUT};
 handle_info({ssl, Socket, Data}, State = #state{socket = {ssl, Socket}}) ->
     ?debug("Received ssl data: ~p",[Data]),
     ok = mochiweb_socket:setopts({ssl, Socket}, [{active, once}]),
@@ -253,69 +279,70 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
--spec handle_client_first_message(Data :: binary(),
-				  State :: #state{}) ->
-    {ok, State :: #state{}}.
-handle_client_first_message(Data, State) when is_binary(Data)->
+-spec handle_client_first_message(PDU :: #{} |
+				  {error, Reason :: term()}) ->
+    {ok, Payload :: binary(), ScramData :: map()} |
+    {error, Reason :: term()}.
+handle_client_first_message(#{procedure := {_, #{payload := Data}}}) ->
     ScramData = scramerl_lib:parse(Data),
     ?debug("Parsed SCRAM Data: ~p", [ScramData]),
-    Message = maps:get(message, ScramData),
-    handle_client_first_message(Message, ScramData, State).
+    do_handle_client_first_message(ScramData);
+handle_client_first_message(Else) ->
+    ?debug("Error when waiting client first msg: ~p", [Else]),
+    {error, invalid_pdu}.
 
--spec handle_client_first_message(Message :: string(),
-				  Data :: map(),
-				  State :: #state{}) ->
+-spec do_handle_client_first_message(ScramData :: map()) ->
     {ok, State :: #state{}}.
-handle_client_first_message("client-first-message", ScramData, State) ->
-    Username = maps:get(username, ScramData),
+do_handle_client_first_message(#{message := "client-first-message",
+				 username := Username,
+				 str := ClientFirstMsg,
+				 nonce := CNonce} = ScramData) ->
     {ok, Salt, IterCount} = get_user_salt(Username),
-
-    ClientFirstMsg = maps:get(str, ScramData),
     ClientFirstMsgBare = scramerl_lib:prune('gs2-header', ClientFirstMsg),
-
-    CNonce = maps:get(nonce, ScramData),
     SNonce = scramerl:gen_nonce(),
     Nonce = CNonce ++ SNonce,
-
     MsgStr = scramerl:server_first_message(Nonce, Salt, IterCount),
-    ServerFirstMessage = list_to_binary(MsgStr),
-    ?debug("Sending server-first-message: ~p", [ServerFirstMessage]),
-    ok = mochiweb_socket:send(State#state.socket, ServerFirstMessage),
-
+    ?debug("server-first-message: ~p", [MsgStr]),
     AddScramData = maps:from_list([{iteration_count, IterCount},
 				   {salt, Salt},
 				   {snonce, SNonce},
 				   {client_first_msg_bare, ClientFirstMsgBare},
 				   {server_first_msg, MsgStr}]),
-    {ok, State#state{scram_state = ?WAIT_FOR_CLIENT_FINAL,
-		     scram_data = maps:merge(ScramData, AddScramData)}};
-handle_client_first_message(Message, _ScramData, State) ->
+    {ok, list_to_binary(MsgStr), maps:merge(ScramData, AddScramData)};
+do_handle_client_first_message(#{message := Message}) ->
     ?debug("Invalid client first message: ~p", [Message]),
-    {ok, State}.
+    {error, invalid_scram_msg}.
 
--spec handle_client_final_message(Data :: binary(),
-				  State :: #state{}) ->
-    {ok, State :: #state{}}.
-handle_client_final_message(Data, State) when is_binary(Data)->
+-spec handle_client_final_message(PDU :: map() | {error, Reason :: term()},
+				  PrevScramData :: map()) ->
+    {ok, Payload :: binary()} |
+    {nok, Payload :: binary()} |
+    {error, Reason :: term()}.
+handle_client_final_message(#{procedure := {_, #{payload := Data}}},
+			    PrevScramData) ->
     ScramData = scramerl_lib:parse(Data),
     ?debug("Parsed SCRAM Data: ~p", [ScramData]),
-    Message = maps:get(message, ScramData),
-    handle_client_final_message(Message, ScramData, State).
+    do_handle_client_final_message(ScramData, PrevScramData);
+handle_client_final_message(Else, _PrevScramData) ->
+    ?debug("Error when waiting client final msg: ~p", [Else]),
+    {error, invalid_pdu}.
 
--spec handle_client_final_message(Message :: string(),
-				  Data :: map(),
-				  State :: #state{}) ->
-    {ok, State :: #state{}}.
-handle_client_final_message("client-final-message",
-			    ScramData,
-			    State = #state{scram_data = PrevScramData}) ->
+-spec do_handle_client_final_message(ScramData :: map(),
+				     PrevScramData :: map()) ->
+    {ok, Payload :: binary()} |
+    {nok, Payload :: binary()} |
+    {error, Reason :: term()}.
+do_handle_client_final_message(#{message := "client-final-message",
+			      str := ClientFinalMsg,
+			      nonce := CheckNonce,
+			      proof := CheckProof},
+			    #{client_first_msg_bare := ClientFirstMsgBare,
+			      server_first_msg := ServerFirstMsg,
+			      nonce := CNonce,
+			      snonce := SNonce,
+			      username := Username}) ->
 
-    Username = maps:get(username, PrevScramData),
     {ok, SaltedPassword} = get_salted_password(Username),
-
-    ClientFirstMsgBare = maps:get(client_first_msg_bare, PrevScramData),
-    ServerFirstMsg = maps:get(server_first_msg, PrevScramData),
-    ClientFinalMsg = maps:get(str, ScramData),
     CFMWoP = scramerl_lib:prune(proof, ClientFinalMsg),
     AuthMessage = ClientFirstMsgBare ++ "," ++
                   ServerFirstMsg ++ "," ++
@@ -323,40 +350,25 @@ handle_client_final_message("client-final-message",
     ?debug("SaltedPassword: ~p",[SaltedPassword]),
     ?debug("AuthMessage: ~p",[AuthMessage]),
     Proof = scramerl:client_proof(SaltedPassword, AuthMessage),
-
-    CheckNonce = maps:get(nonce, ScramData),
-    CheckProof = maps:get(proof, ScramData),
-
-    CNonce = maps:get(nonce, PrevScramData),
-    SNonce = maps:get(snonce, PrevScramData),
     Nonce = CNonce ++ SNonce,
-    AddScramData = maps:from_list([{salted_password, SaltedPassword},
-				   {auth_message, AuthMessage}]),
-    NewScramData =  maps:merge(PrevScramData, AddScramData),
-    NewState = State#state{scram_data = NewScramData},
-    handle_client_final_message(Proof, CheckProof, Nonce, CheckNonce, NewState);
-handle_client_final_message(Message, _ScramData, State) ->
+    case check_proof_nonce(Proof, CheckProof, Nonce, CheckNonce) of
+	match ->
+	    ServerSignature =
+		scramerl:server_signature(SaltedPassword, AuthMessage),
+	    MsgStr = scramerl:server_final_message(ServerSignature),
+	    {ok, list_to_binary(MsgStr)};
+	nomatch ->
+	    ?debug("Unmatched Proof ~p =? ~p",[Proof, CheckProof]),
+	    ?debug("Unmatched Nonce ~p =? ~p",[Nonce, CheckNonce]),
+	    MsgStr = scramerl:server_final_message({error, "invalid-proof"}),
+	    {nok, list_to_binary(MsgStr)}
+    end;
+do_handle_client_final_message(#{message := Message}, _PrevScramData) ->
     ?debug("Invalid client final message: ~p", [Message]),
-    {ok, State}.
+    {error, invalid_scram_msg}.
 
-handle_client_final_message(Proof, Proof,
-			    Nonce, Nonce,
-			    State = #state{scram_data = ScramData}) ->
-    SaltedPassword = maps:get(salted_password, ScramData),
-    AuthMessage = maps:get(auth_message, ScramData),
-    ServerSignature = scramerl:server_signature(SaltedPassword, AuthMessage),
-    MsgStr = scramerl:server_final_message(ServerSignature),
-    ServerFirstMessage = list_to_binary(MsgStr),
-    mochiweb_socket:send(State#state.socket, ServerFirstMessage),
-    {ok, State#state{scram_state = ?AUTHENTICATED}};
-handle_client_final_message(Proof, CheckProof,
-			    Nonce, CheckNonce, State) ->
-    ?debug("Unmatched Proof ~p =? ~p",[Proof, CheckProof]),
-    ?debug("Unmatched Nonce ~p =? ~p",[Nonce, CheckNonce]),
-    MsgStr = scramerl:server_final_message({error, "invalid-proof"}),
-    ServerFirstMessage = list_to_binary(MsgStr),
-    mochiweb_socket:send(State#state.socket, ServerFirstMessage),
-    {ok, State}.
+check_proof_nonce(Proof, Proof, Nonce, Nonce) -> match;
+check_proof_nonce(_Poof, _Proo, _Nnce, _Nonc) -> nomatch.
 
 -spec get_user_salt(Username :: string()) ->
     {ok, Salt :: string(), IterCount :: string()} | {error, Reason :: term()}.
