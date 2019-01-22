@@ -389,7 +389,7 @@ user_expand(["user", "passwd", Prefix])->
 user_expand(["user", "rights", Prefix])->
     Options = pundun_user_db:list_users(),
     options_expand(Prefix, Options);
-user_expand(["user", "rights", User, Prefix])->
+user_expand(["user", "rights", _User, Prefix])->
     Options = ["all", "readonly"],
     options_expand(Prefix, Options);
 user_expand(_) ->
